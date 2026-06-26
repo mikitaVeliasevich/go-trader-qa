@@ -1,0 +1,17 @@
+---
+description: Fleet soak QA orchestrator. Use for multi-subaccount soak via Manager APIs.
+globs:
+alwaysApply: false
+---
+
+# go-trader-qa
+
+Fleet soak orchestrator. Design docs and soak script reference live in sibling **go-trader**:
+
+- `../go-trader/.gstack/qa-reports/manager-fleet-api-spec.md`
+- `../go-trader/.gstack/qa-reports/fleet_qa_automation_design_0691c1b0.plan.md`
+- Port from `../go-trader/.gstack/qa-reports/soak-monitor.sh` and `soak-analyze.sh`
+
+**Local** single-machine soak → `../go-trader/.gstack/qa-reports/soak-run.sh` (not this repo).
+
+Manager-only access (`MANAGER_BEARER_TOKEN`). Smoke: `./scripts/smoke-manager.sh`.
