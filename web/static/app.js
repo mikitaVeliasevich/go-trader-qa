@@ -154,8 +154,16 @@
     btnBackBatch: $('btn-back-batch'),
     btnReportRefresh: $('btn-report-refresh'),
     lifecycleDialog: $('lifecycle-dialog'),
+    lifecycleDialogTitle: $('lifecycle-dialog-title'),
+    lifecycleDialogMessage: $('lifecycle-dialog-message'),
+    metricsGuideLoading: $('metrics-guide-loading'),
+    metricsGuideError: $('metrics-guide-error'),
+    metricsGuideErrorMsg: $('metrics-guide-error-msg'),
+    metricsGuideContent: $('metrics-guide-content'),
     toast: $('toast'),
   };
+
+  let metricsGuideCache = null;
 
   function showToast(msg, isError) {
     els.toast.textContent = msg;
@@ -891,8 +899,93 @@
     if (parts[0] === 'batch' && parts[1] === 'report' && parts[2]) {
       return { view: 'batch', batchSubview: 'report', serverId: parseInt(parts[2], 10) };
     }
-    const view = ['fleet', 'batches', 'batch'].includes(parts[0]) ? parts[0] : 'fleet';
+    const view = ['fleet', 'batches', 'batch', 'metrics'].includes(parts[0]) ? parts[0] : 'fleet';
     return { view, batchSubview: 'detail' };
+  }
+
+  function profileChipsHtml(profiles) {
+    if (!profiles || !profiles.length) return '<span class="muted">—</span>';
+    return `<span class="profile-chips">${profiles.map((p) => `<span class="profile-chip">${esc(p)}</span>`).join('')}</span>`;
+  }
+
+  function renderMetricsGuide(data) {
+    const intro = data.intro || {};
+    let html = `<div class="metrics-guide-intro">
+      <p><strong>${esc(intro.title || 'Metrics & gates reference')}</strong></p>
+      <p>${esc(intro.gate_naming || '')}</p>
+      <p>${esc(intro.how_sampling || '')}</p>
+      <p>${esc(intro.how_reports || '')}</p>
+    </div>`;
+
+    html += '<h3>Analyzer profiles</h3><div class="profile-grid">';
+    for (const p of data.profiles || []) {
+      html += `<article class="profile-card">
+        <strong>${esc(p.label || p.id)}</strong>
+        <div class="gate-list">${esc((p.gates || []).join(', '))}</div>
+        <p>${esc(p.description || '')}</p>
+      </article>`;
+    }
+    html += '</div>';
+
+    html += `<section class="metrics-guide-gates">
+      <h3>Gates (G1–G16)</h3>
+      <div class="gates-table-wrap">
+        <table class="gates-table">
+          <thead><tr>
+            <th>Gate</th><th>What it checks</th><th>Rule</th><th>In profiles</th><th>In reports</th>
+          </tr></thead><tbody>`;
+    for (const g of data.gates || []) {
+      html += `<tr>
+        <td class="gate-id">${esc(g.id)}</td>
+        <td><strong>${esc(g.title || '')}</strong><br>${esc(g.why || '')}</td>
+        <td><code>${esc(g.rule || '')}</code></td>
+        <td>${profileChipsHtml(g.profiles)}</td>
+        <td>${esc(g.report_hint || '')}</td>
+      </tr>`;
+    }
+    html += '</tbody></table></div></section>';
+
+    for (const grp of data.groups || []) {
+      html += `<h3>${esc(grp.title || '')}</h3>`;
+      if (grp.summary) html += `<p class="metric-group-summary">${esc(grp.summary)}</p>`;
+      html += `<div class="metrics-table-wrap"><table class="metrics-table">
+        <thead><tr><th>Column</th><th>Source</th><th>expvar key</th><th>Meaning</th></tr></thead><tbody>`;
+      for (const m of grp.metrics || []) {
+        html += `<tr>
+          <td><code>${esc(m.column)}</code></td>
+          <td>${esc(m.source || 'expvar')}</td>
+          <td>${m.expvar ? `<code>${esc(m.expvar)}</code>` : '<span class="muted">—</span>'}</td>
+          <td>${esc(m.description || '')}</td>
+        </tr>`;
+      }
+      html += '</tbody></table></div>';
+    }
+
+    els.metricsGuideContent.innerHTML = html;
+  }
+
+  async function loadMetricsGuide() {
+    if (metricsGuideCache) {
+      renderMetricsGuide(metricsGuideCache);
+      els.metricsGuideLoading.classList.add('hidden');
+      els.metricsGuideError.classList.add('hidden');
+      els.metricsGuideContent.classList.remove('hidden');
+      return;
+    }
+    els.metricsGuideLoading.classList.remove('hidden');
+    els.metricsGuideError.classList.add('hidden');
+    els.metricsGuideContent.classList.add('hidden');
+    try {
+      const data = await api('/api/metrics-guide');
+      metricsGuideCache = data;
+      renderMetricsGuide(data);
+      els.metricsGuideLoading.classList.add('hidden');
+      els.metricsGuideContent.classList.remove('hidden');
+    } catch (e) {
+      els.metricsGuideLoading.classList.add('hidden');
+      els.metricsGuideError.classList.remove('hidden');
+      els.metricsGuideErrorMsg.textContent = 'Could not load reference: ' + e.message;
+    }
   }
 
   function setView(name, opts) {
@@ -910,6 +1003,7 @@
     });
     if (name === 'batch') pickDefaultBatch();
     if (name === 'batches') loadAllBatches();
+    if (name === 'metrics') loadMetricsGuide();
     if (name === 'batch' && !opts.keepBatchSubview) setBatchSubview('detail', { skipHash: true });
     if (!opts.skipHash) updateHash();
   }
@@ -1079,8 +1173,17 @@
     const windowVal = els.analyzeWindow.value;
     const durationVal = els.soakDuration.value;
 
-    if (profile === 'lifecycle') {
+    if (profile === 'lifecycle' || profile === 'lifecycle-strict') {
       const dlg = els.lifecycleDialog;
+      if (profile === 'lifecycle-strict') {
+        els.lifecycleDialogTitle.textContent = 'Lifecycle-strict profile';
+        els.lifecycleDialogMessage.textContent =
+          'Runs G1–G16 including order failures, TP/SL recovery, and wake-path health. Fleet bots must run the latest go-trader build. Continue?';
+      } else {
+        els.lifecycleDialogTitle.textContent = 'Lifecycle profile';
+        els.lifecycleDialogMessage.textContent =
+          'Lifecycle gates need active trading during the soak window. Continue?';
+      }
       const ok = await new Promise((resolve) => {
         dlg.addEventListener('close', () => resolve(dlg.returnValue === 'confirm'), { once: true });
         dlg.showModal();

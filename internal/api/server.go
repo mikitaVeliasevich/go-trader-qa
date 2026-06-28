@@ -39,6 +39,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/health", s.handleHealth)
+	s.mux.HandleFunc("GET /api/metrics-guide", s.handleMetricsGuide)
 	s.mux.HandleFunc("GET /api/fleet", s.handleFleetGet)
 	s.mux.HandleFunc("POST /api/fleet/sync", s.handleFleetSync)
 

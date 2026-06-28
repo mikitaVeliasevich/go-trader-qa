@@ -16,6 +16,7 @@ import (
 
 	"github.com/dlisovsky/go-trader-qa/internal/analyze"
 	"github.com/dlisovsky/go-trader-qa/internal/batch"
+	"github.com/dlisovsky/go-trader-qa/internal/catalog"
 	"github.com/dlisovsky/go-trader-qa/internal/fleet"
 	"github.com/dlisovsky/go-trader-qa/internal/metrics"
 )
@@ -51,6 +52,10 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		"ok":      true,
 		"version": version,
 	})
+}
+
+func (s *Server) handleMetricsGuide(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, catalog.BuildGuide())
 }
 
 func (s *Server) handleFleetGet(w http.ResponseWriter, _ *http.Request) {
@@ -160,6 +165,10 @@ func (s *Server) handleBatchCreate(w http.ResponseWriter, r *http.Request) {
 	profile := strings.TrimSpace(req.Profile)
 	if profile == "" {
 		profile = string(analyze.ProfileWSSOnly)
+	}
+	if !analyze.ValidProfile(analyze.Profile(profile)) {
+		writeError(w, http.StatusBadRequest, "profile must be wss-only, lifecycle, lifecycle-strict, or tpsl-health")
+		return
 	}
 
 	skipIneligible := true
@@ -616,6 +625,10 @@ func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 	profile := analyze.Profile(strings.TrimSpace(req.Profile))
 	if profile == "" {
 		profile = analyze.ProfileWSSOnly
+	}
+	if !analyze.ValidProfile(profile) {
+		writeError(w, http.StatusBadRequest, "profile must be wss-only, lifecycle, lifecycle-strict, or tpsl-health")
+		return
 	}
 
 	result, err := analyze.Run(runDir, profile)

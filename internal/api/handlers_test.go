@@ -72,6 +72,25 @@ func TestHandleFleetNotSynced(t *testing.T) {
 	}
 }
 
+func TestHandleMetricsGuide(t *testing.T) {
+	s, _ := testServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/metrics-guide", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body %s", rec.Code, rec.Body.String())
+	}
+	var out map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	gates, ok := out["gates"].([]any)
+	if !ok || len(gates) != 16 {
+		t.Fatalf("gates = %v", out["gates"])
+	}
+}
+
 func TestHandleBatchCreateAnalyzeLifecycle(t *testing.T) {
 	s, _ := testServer(t)
 	payload := map[string]any{

@@ -25,6 +25,8 @@
       <a href="#fleet" class="nav-link active" data-view="fleet">Fleet</a>
       <a href="#batches" class="nav-link" data-view="batches">Batches</a>
       <a href="#batch" class="nav-link" data-view="batch">Batch detail</a>
+      <div class="nav-section">Reference</div>
+      <a href="#metrics" class="nav-link" data-view="metrics">Metrics guide</a>
       <div class="nav-section">Recent batches</div>
       <div id="recent-batches" class="recent-list">
         <p class="nav-empty">Sync fleet to load</p>
@@ -193,6 +195,23 @@
           </div>
         </div>
       </section>
+
+      <!-- Metrics & gates reference -->
+      <section id="view-metrics" class="view" aria-hidden="true" inert>
+        <div class="card metrics-guide-card">
+          <div class="card-header">
+            <h2>Metrics guide</h2>
+            <span class="muted">What columns and G1–G16 gates mean in qa-report.md</span>
+          </div>
+          <div id="metrics-guide-loading" class="empty-state">
+            <p>Loading reference…</p>
+          </div>
+          <div id="metrics-guide-error" class="empty-state hidden">
+            <p id="metrics-guide-error-msg">Could not load reference.</p>
+          </div>
+          <div id="metrics-guide-content" class="metrics-guide hidden"></div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -230,8 +249,10 @@
       </div>
       <label class="inline-label">Profile
         <select id="soak-profile">
-          <option value="wss-only" selected>wss-only</option>
-          <option value="lifecycle">lifecycle</option>
+          <option value="wss-only" selected>wss-only (G1, G2, G11)</option>
+          <option value="lifecycle">lifecycle (G1–G7)</option>
+          <option value="lifecycle-strict">lifecycle-strict (G1–G16)</option>
+          <option value="tpsl-health">tpsl-health (G10, G12–G14)</option>
         </select>
       </label>
       <details class="test-advanced" disabled>
@@ -247,8 +268,8 @@
 
   <dialog id="lifecycle-dialog">
     <form method="dialog">
-      <h3>Lifecycle profile</h3>
-      <p>Lifecycle gates need active trading during the soak window. Continue?</p>
+      <h3 id="lifecycle-dialog-title">Lifecycle profile</h3>
+      <p id="lifecycle-dialog-message">Lifecycle gates need active trading during the soak window. Continue?</p>
       <div class="dialog-actions">
         <button value="cancel" class="btn-secondary">Cancel</button>
         <button value="confirm" class="btn-primary">Continue</button>
