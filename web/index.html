@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>gtqa · Fleet QA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header class="app-bar">
+    <div class="app-bar-left">
+      <h1>gtqa</h1>
+      <span class="app-subtitle">Fleet QA</span>
+    </div>
+    <div class="app-bar-meta" id="header-meta">Not synced</div>
+    <button type="button" class="btn-sync" id="btn-sync">Sync fleet</button>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar" aria-label="Main navigation">
+      <div class="nav-section">Views</div>
+      <a href="#fleet" class="nav-link active" data-view="fleet">Fleet</a>
+      <a href="#batches" class="nav-link" data-view="batches">Batches</a>
+      <a href="#batch" class="nav-link" data-view="batch">Batch detail</a>
+      <div class="nav-section">Recent batches</div>
+      <div id="recent-batches" class="recent-list">
+        <p class="nav-empty">Sync fleet to load</p>
+      </div>
+    </nav>
+
+    <main class="workspace">
+      <div id="toast" class="toast hidden" role="status"></div>
+
+      <!-- Fleet view -->
+      <section id="view-fleet" class="view active" aria-hidden="false">
+        <div class="card" id="fleet-card">
+          <div class="card-header">
+            <h2>Subaccounts</h2>
+            <span class="chip" id="chip-eligible" role="button" tabindex="0">Eligible only</span>
+          </div>
+          <div id="fleet-empty" class="empty-state">
+            <p>Sync fleet to load subaccounts</p>
+            <button type="button" class="btn-primary" id="btn-sync-empty">Sync fleet</button>
+          </div>
+          <div id="fleet-content" class="hidden">
+            <div class="toolbar">
+              <input type="search" id="fleet-search" placeholder="Search username or server_id…" autocomplete="off">
+              <button type="button" class="chip" id="btn-select-all">Select all eligible</button>
+            </div>
+            <div class="table-wrap">
+              <table id="fleet-table">
+                <thead>
+                  <tr>
+                    <th class="col-check" scope="col"></th>
+                    <th scope="col" data-sort-table="fleet" data-sort-key="username"><button type="button" class="th-sort">username</button></th>
+                    <th scope="col" data-sort-table="fleet" data-sort-key="server_id"><button type="button" class="th-sort">server_id</button></th>
+                    <th scope="col" data-sort-table="fleet" data-sort-key="pair_id"><button type="button" class="th-sort">pair_id</button></th>
+                    <th scope="col" data-sort-table="fleet" data-sort-key="qa_eligible"><button type="button" class="th-sort">eligible</button></th>
+                    <th scope="col" data-sort-table="fleet" data-sort-key="deployed_image_hash"><button type="button" class="th-sort">image</button></th>
+                    <th scope="col" data-sort-table="fleet" data-sort-key="categories"><button type="button" class="th-sort">categories</button></th>
+                  </tr>
+                </thead>
+                <tbody id="fleet-tbody"></tbody>
+              </table>
+            </div>
+            <p id="fleet-filter-empty" class="filter-empty hidden">No subs match filter</p>
+            <div class="cta-row">
+              <span id="selection-label">0 selected</span>
+              <label class="inline-label">Duration
+                <select id="soak-duration">
+                  <option value="15s">15s</option>
+                  <option value="5m">5m</option>
+                  <option value="30m" selected>30m</option>
+                  <option value="1h">1h</option>
+                  <option value="8h">8h</option>
+                </select>
+              </label>
+              <label class="inline-label">Profile
+                <select id="soak-profile">
+                  <option value="wss-only" selected>wss-only</option>
+                  <option value="lifecycle">lifecycle</option>
+                </select>
+              </label>
+              <button type="button" class="btn-primary" id="btn-start" disabled>Start soak</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- All soak runs (batches) -->
+      <section id="view-batches" class="view" aria-hidden="true" inert>
+        <div class="card">
+          <div class="card-header">
+            <h2>Soak runs</h2>
+            <span id="batches-count" class="muted"></span>
+          </div>
+          <div id="batches-loading" class="empty-state hidden">
+            <p>Loading runs…</p>
+          </div>
+          <div id="batches-empty" class="empty-state hidden">
+            <p>No soak runs yet. Start one from Fleet.</p>
+            <a href="#fleet" class="btn-primary" data-goto="fleet">Go to Fleet</a>
+          </div>
+          <div id="batches-content" class="hidden">
+            <div class="table-wrap">
+              <table class="batches-table" id="batches-table">
+                <thead>
+                  <tr>
+                    <th scope="col" data-sort-table="batches" data-sort-key="status"><button type="button" class="th-sort">status</button></th>
+                    <th scope="col" data-sort-table="batches" data-sort-key="estimated_end_at"><button type="button" class="th-sort">remaining</button></th>
+                    <th scope="col" data-sort-table="batches" data-sort-key="started_at" class="col-time"><button type="button" class="th-sort">start</button></th>
+                    <th scope="col" data-sort-table="batches" data-sort-key="completed_at" class="col-time"><button type="button" class="th-sort">end</button></th>
+                    <th scope="col" data-sort-table="batches" data-sort-key="duration"><button type="button" class="th-sort">duration</button></th>
+                    <th scope="col" data-sort-table="batches" data-sort-key="id"><button type="button" class="th-sort">batch_id</button></th>
+                    <th scope="col" data-sort-table="batches" data-sort-key="pass_count"><button type="button" class="th-sort">pass</button></th>
+                    <th scope="col" data-sort-table="batches" data-sort-key="fail_count"><button type="button" class="th-sort">fail</button></th>
+                    <th scope="col" class="col-actions">actions</th>
+                  </tr>
+                </thead>
+                <tbody id="batches-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Active batch view (summary + per-server jobs + inline report) -->
+      <section id="view-batch" class="view" aria-hidden="true" inert>
+        <div id="batch-empty" class="empty-state">
+          <p>No batch selected. Open a run from Batches, or start a soak from Fleet.</p>
+          <a href="#batches" class="btn-primary" data-goto="batches">View all runs</a>
+        </div>
+        <div id="batch-content" class="hidden">
+          <div id="batch-detail-panel">
+            <div class="card">
+              <div class="card-header">
+                <h2 id="batch-title">Batch</h2>
+                <div class="header-actions">
+                  <span id="batch-updated" class="muted"></span>
+                  <span id="batch-status-badge" class="tag"></span>
+                  <button type="button" class="btn-danger hidden" id="btn-cancel">Cancel batch</button>
+                </div>
+              </div>
+              <dl class="batch-timeline" id="batch-timeline"></dl>
+              <div class="batch-progress-row" role="group" aria-label="Batch progress">
+                <span class="progress-label">Jobs <strong id="batch-jobs-label">0/0</strong></span>
+                <div class="progress-bar" aria-hidden="true"><div id="batch-progress"></div></div>
+                <span class="progress-label" id="batch-time-label" aria-live="polite"></span>
+              </div>
+              <div class="batch-outcomes" id="batch-outcomes"></div>
+              <div class="table-wrap">
+                <table id="jobs-table">
+                  <thead>
+                    <tr>
+                      <th scope="col" data-sort-table="jobs" data-sort-key="username"><button type="button" class="th-sort">username</button></th>
+                      <th scope="col" data-sort-table="jobs" data-sort-key="server_id"><button type="button" class="th-sort">server_id</button></th>
+                      <th scope="col" data-sort-table="jobs" data-sort-key="pair_id"><button type="button" class="th-sort">pair_id</button></th>
+                      <th scope="col" data-sort-table="jobs" data-sort-key="status"><button type="button" class="th-sort">status</button></th>
+                      <th scope="col" data-sort-table="jobs" data-sort-key="samples"><button type="button" class="th-sort">samples</button></th>
+                      <th scope="col" data-sort-table="jobs" data-sort-key="last_bus_drops"><button type="button" class="th-sort" title="Dropped messages on event bus">Bus drops</button></th>
+                      <th scope="col" data-sort-table="jobs" data-sort-key="overall"><button type="button" class="th-sort">overall</button></th>
+                      <th scope="col" class="col-actions">actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="jobs-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div id="batch-report-panel" class="hidden" aria-hidden="true" inert>
+            <div class="card">
+              <div class="card-header report-card-header">
+                <button type="button" class="btn-link btn-back" id="btn-back-batch">← Back to batch</button>
+                <h2 id="report-title">Report</h2>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  id="btn-report-refresh"
+                  title="Re-analyze report"
+                  aria-label="Re-analyze report"
+                >
+                  <svg class="icon-btn-svg" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+                    <path
+                      fill="currentColor"
+                      d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div id="report-banner" class="report-banner"></div>
+              <div id="report-body" class="report-body markdown-body"></div>
+              <div class="artifact-row" id="artifact-links"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="lifecycle-dialog">
+    <form method="dialog">
+      <h3>Lifecycle profile</h3>
+      <p>Lifecycle gates need active trading during the soak window. Continue?</p>
+      <div class="dialog-actions">
+        <button value="cancel" class="btn-secondary">Cancel</button>
+        <button value="confirm" class="btn-primary">Continue</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -16,6 +16,7 @@ func main() {
 	root.AddCommand(newFleetCmd())
 	root.AddCommand(newSmokeCmd())
 	root.AddCommand(newSoakCmd())
+	root.AddCommand(newAnalyzeCmd())
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Variant A — Ops Dark</title>
+<style>
+:root {
+  --bg: #0f1419; --surface: #1a2332; --text: #e6edf3; --muted: #8b949e;
+  --pass: #3fb950; --fail: #f85149; --warn: #d29922; --accent: #58a6ff;
+  --border: #30363d;
+}
+* { box-sizing: border-box; margin: 0; }
+body { font: 16px/1.5 ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+header h1 { font-size: 18px; font-weight: 600; }
+header h1 span { color: var(--muted); font-weight: 400; }
+.badge { font-size: 13px; color: var(--muted); }
+.badge strong { color: var(--pass); }
+.btn { background: var(--accent); color: #0d1117; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; min-height: 44px; }
+.btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+main { max-width: 1200px; margin: 0 auto; padding: 16px 20px 40px; }
+section { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+.section-head { padding: 12px 16px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: var(--muted); text-transform: uppercase; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.row-tools { display: flex; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--border); align-items: center; }
+input[type=search] { flex: 1; min-width: 200px; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); min-height: 44px; }
+label.chk { display: flex; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; min-height: 44px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); height: 40px; }
+th { position: sticky; top: 57px; background: var(--surface); color: var(--muted); font-weight: 500; font-size: 12px; }
+tr.muted td { color: var(--muted); }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+.pill.pass { background: #23863633; color: var(--pass); }
+.pill.fail { background: #da363333; color: var(--fail); }
+.pill.run { background: #1f6feb33; color: var(--accent); }
+.batch-bar { padding: 12px 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; border-top: 1px solid var(--border); }
+select { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); min-height: 44px; }
+.progress { height: 4px; background: var(--border); border-radius: 2px; margin: 0 16px 12px; }
+.progress > div { height: 100%; width: 66%; background: var(--accent); border-radius: 2px; }
+.report-banner { padding: 16px; text-align: center; font-size: 20px; font-weight: 700; background: #23863622; color: var(--pass); border-bottom: 1px solid var(--border); }
+.report-body { padding: 16px; font-size: 14px; color: var(--muted); }
+.artifact-row { display: flex; gap: 8px; padding: 0 16px 16px; flex-wrap: wrap; }
+.artifact-row a { color: var(--accent); text-decoration: none; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>gtqa <span>· Fleet QA</span></h1>
+  <div style="display:flex;gap:12px;align-items:center">
+    <span class="badge">Eligible <strong>3</strong>/7</span>
+    <span class="badge">● connected</span>
+    <button class="btn">Sync fleet</button>
+  </div>
+</header>
+<main>
+  <section>
+    <div class="section-head">Recent batches <button class="btn btn-ghost" style="min-height:32px;padding:4px 10px;font-size:12px">Collapse</button></div>
+    <table>
+      <tr><td>batch-20260628T120000Z</td><td><span class="pill pass">complete</span></td><td>PASS 2 / FAIL 1</td><td><a href="#" style="color:var(--accent)">Open</a></td></tr>
+    </table>
+  </section>
+  <section>
+    <div class="section-head">Fleet table</div>
+    <div class="row-tools">
+      <input type="search" placeholder="Search username or server_id…">
+      <label class="chk"><input type="checkbox"> Eligible only</label>
+      <button class="btn btn-ghost">Select all eligible</button>
+    </div>
+    <table>
+      <thead><tr><th></th><th>username</th><th>server_id</th><th>pair_id</th><th>eligible</th><th>image</th><th>categories</th></tr></thead>
+      <tbody>
+        <tr><td><input type="checkbox" checked></td><td>yatradetestsub1</td><td>11</td><td>514690847@11</td><td><span class="pill pass">yes</span></td><td>8659…</td><td>dev</td></tr>
+        <tr><td><input type="checkbox" checked></td><td>sub2</td><td>12</td><td>514690848@12</td><td><span class="pill pass">yes</span></td><td>8659…</td><td>dev</td></tr>
+        <tr class="muted"><td><input type="checkbox" disabled></td><td>stopped-sub</td><td>13</td><td>—</td><td>no</td><td>—</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <div class="batch-bar">
+      <span>Run soak on <strong>2</strong> selected</span>
+      <select><option>30m</option></select>
+      <select><option>wss-only</option></select>
+      <button class="btn">Start</button>
+    </div>
+  </section>
+  <section>
+    <div class="section-head">Batch dashboard <span style="font-weight:400;text-transform:none">Last updated 12:04:22</span></div>
+    <div class="progress"><div></div></div>
+    <table>
+      <tr><td>batch-20260628T130000Z</td><td><span class="pill run">running</span></td><td>2/3 jobs</td><td>PASS 1</td><td>FAIL 0</td><td><button class="btn btn-ghost" style="min-height:32px">Cancel</button></td></tr>
+      <tr><td>server 11</td><td>running</td><td>samples 4</td><td>bus_drops 0</td><td>—</td><td><a href="#" style="color:var(--accent)">View report</a></td></tr>
+    </table>
+  </section>
+  <section>
+    <div class="section-head"><a href="#" style="color:var(--accent);text-decoration:none">◀ Back to batch</a> Report</div>
+    <div class="report-banner">OVERALL: PASS</div>
+    <div class="report-body">G1 WebSocket connected … G7 no bus drops …</div>
+    <div class="artifact-row">
+      <a href="#">metrics.tsv</a><a href="#">soak.log</a><a href="#">issues.log</a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

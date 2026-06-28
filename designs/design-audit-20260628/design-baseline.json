@@ -1,0 +1,28 @@
+{
+  "date": "2026-06-28",
+  "url": "http://127.0.0.1:8080",
+  "designScore": "B+",
+  "aiSlopScore": "A-",
+  "categoryGrades": {
+    "hierarchy": "A-",
+    "typography": "B+",
+    "spacing": "B+",
+    "color": "A-",
+    "interaction": "B",
+    "responsive": "B",
+    "content": "B+",
+    "aiSlop": "A-",
+    "motion": "B",
+    "performance": "A"
+  },
+  "findings": [
+    {"id": "FINDING-001", "title": "No focus-visible styles", "impact": "high", "category": "interaction", "status": "fixed"},
+    {"id": "FINDING-002", "title": "Checkbox aria-label missing", "impact": "high", "category": "interaction", "status": "fixed"},
+    {"id": "FINDING-003", "title": "Hidden views in a11y tree", "impact": "medium", "category": "interaction", "status": "fixed"},
+    {"id": "FINDING-004", "title": "Active batch empty when batch running", "impact": "medium", "category": "hierarchy", "status": "fixed"},
+    {"id": "FINDING-005", "title": "Cancel button touch target", "impact": "medium", "category": "responsive", "status": "fixed"},
+    {"id": "FINDING-006", "title": "Summary link touch target", "impact": "medium", "category": "responsive", "status": "fixed"},
+    {"id": "FINDING-007", "title": "Cryptic P0 F0 labels", "impact": "polish", "category": "content", "status": "fixed"},
+    {"id": "FINDING-008", "title": "Ineligible reason tooltip-only", "impact": "polish", "category": "content", "status": "fixed"}
+  ]
+}

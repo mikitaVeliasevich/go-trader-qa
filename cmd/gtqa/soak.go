@@ -39,6 +39,7 @@ func newSoakCmd() *cobra.Command {
 	_ = runCmd.MarkFlagRequired("server-id")
 
 	cmd.AddCommand(runCmd)
+	cmd.AddCommand(newSoakBatchCmd())
 	return cmd
 }
 

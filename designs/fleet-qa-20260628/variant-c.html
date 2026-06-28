@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Variant C — Light Split</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
+:root {
+  --bg: #f4f5f7; --surface: #ffffff; --text: #172b4d; --muted: #6b778c;
+  --pass: #00875a; --fail: #de350b; --accent: #0052cc; --border: #dfe1e6;
+  --sidebar: #0747a6;
+}
+* { box-sizing: border-box; margin: 0; }
+body { font: 15px/1.5 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+.app-bar { background: var(--sidebar); color: #fff; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; }
+.app-bar h1 { font-size: 20px; font-weight: 600; }
+.app-bar .meta { font-size: 13px; opacity: .9; }
+.app-bar button { background: #fff; color: var(--sidebar); border: none; padding: 10px 18px; border-radius: 4px; font-weight: 600; cursor: pointer; min-height: 44px; }
+.layout { display: flex; flex: 1; min-height: 0; }
+nav { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 16px 0; flex-shrink: 0; }
+nav a { display: block; padding: 12px 20px; color: var(--text); text-decoration: none; font-weight: 500; border-left: 3px solid transparent; }
+nav a.active { background: #deebff; border-left-color: var(--accent); color: var(--accent); }
+nav .section-label { padding: 8px 20px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.workspace { flex: 1; padding: 20px 24px; overflow: auto; }
+.card { background: var(--surface); border-radius: 8px; box-shadow: 0 1px 3px rgba(9,30,66,.15); margin-bottom: 20px; overflow: hidden; }
+.card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.card-header h2 { font-size: 16px; font-weight: 600; }
+.toolbar { padding: 12px 20px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; background: #fafbfc; border-bottom: 1px solid var(--border); }
+.toolbar input { flex: 1; min-width: 200px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; min-height: 44px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 16px; background: #ebecf0; font-size: 13px; cursor: pointer; min-height: 44px; }
+.chip.on { background: #deebff; color: var(--accent); }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 12px 20px; text-align: left; border-bottom: 1px solid var(--border); }
+th { font-size: 12px; color: var(--muted); font-weight: 600; background: #fafbfc; }
+.tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; }
+.tag.pass { background: #e3fcef; color: var(--pass); }
+.tag.fail { background: #ffebe6; color: var(--fail); }
+.tag.run { background: #deebff; color: var(--accent); }
+.cta-row { padding: 16px 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.btn-primary { background: var(--accent); color: #fff; border: none; padding: 10px 20px; border-radius: 4px; font-weight: 600; cursor: pointer; min-height: 44px; }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 900px) { .layout { flex-direction: column; } nav { width: 100%; display: flex; overflow-x: auto; } .split { grid-template-columns: 1fr; } }
+.report-panel { padding: 20px; }
+.report-panel .banner { font-size: 22px; font-weight: 700; color: var(--pass); margin-bottom: 12px; }
+.links a { margin-right: 12px; color: var(--accent); font-size: 14px; }
+</style>
+</head>
+<body>
+<header class="app-bar">
+  <div><h1>Fleet QA</h1><div class="meta">3 eligible · connected</div></div>
+  <button>Sync fleet</button>
+</header>
+<div class="layout">
+  <nav>
+    <div class="section-label">Views</div>
+    <a href="#" class="active">Fleet</a>
+    <a href="#">Active batch</a>
+    <a href="#">Reports</a>
+    <div class="section-label" style="margin-top:16px">Recent</div>
+    <a href="#" style="font-size:13px">batch-…120000Z ✓</a>
+    <a href="#" style="font-size:13px">batch-…130000Z …</a>
+  </nav>
+  <div class="workspace">
+    <div class="card">
+      <div class="card-header"><h2>Subaccounts</h2><span class="chip on">Eligible only</span></div>
+      <div class="toolbar">
+        <input placeholder="Search username or server_id…">
+        <span class="chip">Select all eligible</span>
+      </div>
+      <table>
+        <thead><tr><th></th><th>Username</th><th>Server</th><th>Pair</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><input type="checkbox" checked></td><td>yatradetestsub1</td><td>11</td><td>514690847@11</td><td><span class="tag pass">Eligible</span></td></tr>
+          <tr><td><input type="checkbox" checked></td><td>sub2</td><td>12</td><td>514690848@12</td><td><span class="tag pass">Eligible</span></td></tr>
+        </tbody>
+      </table>
+      <div class="cta-row">
+        <span>2 selected · 30m · wss-only</span>
+        <button class="btn-primary">Start soak</button>
+      </div>
+    </div>
+    <div class="split">
+      <div class="card">
+        <div class="card-header"><h2>Batch progress</h2><span class="tag run">Running</span></div>
+        <table>
+          <tr><td>Server 11</td><td>4 samples</td><td><span class="tag run">Running</span></td></tr>
+          <tr><td>Server 12</td><td>12 samples</td><td><span class="tag pass">PASS</span></td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-header"><h2>Report preview</h2></div>
+        <div class="report-panel">
+          <div class="banner">OVERALL: PASS</div>
+          <p style="color:var(--muted);font-size:14px">G1–G7 gates summary…</p>
+          <div class="links"><a href="#">metrics.tsv</a><a href="#">soak.log</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

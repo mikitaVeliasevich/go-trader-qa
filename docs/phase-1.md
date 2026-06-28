@@ -31,6 +31,8 @@ No Web UI, no Telegram, no multi-select batches, no G1–G7 analyzer yet.
 | Long-lived service token | 2 |
 | `/subs` pagination | 2 (when account > ~100 subs) |
 
+**Delivered in Phase 2 (2026-06-28):** Web UI fleet table, multi-server parallel soaks (`gtqa soak batch`), G1–G7 analyzer (`gtqa analyze`). Still deferred: Telegram (Phase 3), bot start/stop, `/subs` pagination.
+
 ---
 
 ## Premises (locked)

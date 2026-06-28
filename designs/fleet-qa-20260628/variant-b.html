@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Variant B — Terminal Mono</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap');
+:root {
+  --bg: #000000; --surface: #0a0a0a; --text: #33ff66; --muted: #1a8f3a;
+  --pass: #33ff66; --fail: #ff3333; --accent: #33ff66; --border: #1a3d24;
+}
+* { box-sizing: border-box; margin: 0; }
+body { font: 14px/1.4 'IBM Plex Mono', monospace; background: var(--bg); color: var(--text); min-height: 100vh; }
+.scanlines::before { content: ''; position: fixed; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.15) 2px, rgba(0,0,0,.15) 4px); z-index: 100; }
+.top { padding: 8px 16px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.top pre { margin: 0; font-size: 13px; }
+.top .cmd { color: var(--muted); }
+.grid { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 48px); }
+aside { border-right: 1px solid var(--border); padding: 12px; }
+aside h2 { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+aside ul { list-style: none; }
+aside li { padding: 6px 0; border-bottom: 1px dotted var(--border); font-size: 12px; cursor: pointer; }
+aside li:hover { color: #fff; }
+.content { padding: 12px 16px; overflow-x: auto; }
+.panel { border: 1px solid var(--border); margin-bottom: 12px; }
+.panel-title { padding: 6px 10px; background: var(--surface); border-bottom: 1px solid var(--border); font-size: 11px; color: var(--muted); }
+.tools { padding: 8px 10px; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid var(--border); }
+.tools input { flex: 1; background: #000; border: 1px solid var(--border); color: var(--text); padding: 8px; font-family: inherit; min-width: 180px; }
+.tools button { background: #000; border: 1px solid var(--accent); color: var(--accent); padding: 8px 12px; font-family: inherit; cursor: pointer; }
+table { width: 100%; font-size: 12px; border-collapse: collapse; }
+th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 400; }
+.dim { color: var(--muted); }
+.status-ok::before { content: '[OK] '; color: var(--pass); }
+.status-run::before { content: '[..] '; color: var(--warn, #ffcc00); }
+.status-fail::before { content: '[!!] '; color: var(--fail); }
+.footer-bar { padding: 10px; border-top: 1px solid var(--border); display: flex; gap: 12px; align-items: center; font-size: 12px; }
+.report { padding: 12px; white-space: pre-wrap; font-size: 12px; }
+.report .overall { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+</style>
+</head>
+<body class="scanlines">
+<div class="top">
+  <pre><span class="cmd">$</span> gtqa-server --listen 127.0.0.1:8080
+<span class="cmd">></span> fleet.sync() <span style="color:var(--muted)">// eligible 3/7</span></pre>
+  <button style="background:#000;border:1px solid var(--accent);color:var(--accent);padding:6px 12px;font-family:inherit;cursor:pointer">[SYNC]</button>
+</div>
+<div class="grid">
+  <aside>
+    <h2>// RECENT_BATCHES</h2>
+    <ul>
+      <li class="status-ok">batch-20260628T120000Z PASS 2/1</li>
+      <li class="status-run">batch-20260628T130000Z running</li>
+    </ul>
+    <h2 style="margin-top:16px">// QUICK</h2>
+    <ul>
+      <li>[x] eligible_only</li>
+      <li>[ ] select_all</li>
+      <li>profile: wss-only</li>
+      <li>duration: 30m</li>
+    </ul>
+  </aside>
+  <div class="content">
+    <div class="panel">
+      <div class="panel-title">FLEET_TABLE</div>
+      <div class="tools">
+        <input placeholder="/grep username|server_id">
+        <button>[SELECT_ALL_ELIGIBLE]</button>
+        <button>[START_BATCH]</button>
+      </div>
+      <table>
+        <thead><tr><th></th><th>user</th><th>sid</th><th>pair</th><th>elig</th><th>hash</th></tr></thead>
+        <tbody>
+          <tr><td>[x]</td><td>yatradetestsub1</td><td>11</td><td>514690847@11</td><td class="status-ok">yes</td><td>8659a</td></tr>
+          <tr><td>[x]</td><td>sub2</td><td>12</td><td>514690848@12</td><td class="status-ok">yes</td><td>8659a</td></tr>
+          <tr class="dim"><td>[ ]</td><td>stopped-sub</td><td>13</td><td>—</td><td>no</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <div class="panel-title">BATCH_DASHBOARD :: batch-20260628T130000Z :: poll 10s</div>
+      <table>
+        <tr><td>server 11</td><td class="status-run">running</td><td>smp=4</td><td>bus_drops=0</td><td><a href="#" style="color:var(--accent)">report</a></td></tr>
+        <tr><td>server 12</td><td class="status-ok">complete PASS</td><td>smp=12</td><td>bus_drops=0</td><td><a href="#" style="color:var(--accent)">report</a></td></tr>
+      </table>
+      <div class="footer-bar"><span>jobs: 2/3</span><span class="status-ok">PASS 1</span><span>FAIL 0</span><button style="background:#000;border:1px solid var(--fail);color:var(--fail);font-family:inherit;padding:4px 8px">CANCEL</button></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">REPORT :: server 12</div>
+      <div class="report"><div class="overall status-ok">OVERALL: PASS</div>G1 ws_connected: true
+G7 bus_drops_delta: 0
+...</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
