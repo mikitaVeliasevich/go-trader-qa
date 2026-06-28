@@ -5,29 +5,50 @@ Fleet soak QA orchestrator for [go-trader](../go-trader). Manager-only access (B
 ## Setup
 
 ```bash
-cp .env.example .env   # set MANAGER_BEARER_TOKEN
-./scripts/smoke-manager.sh 11
+cp .env.example .env   # set MANAGER_BEARER_TOKEN, MANAGER_ACCOUNT_ID, MANAGER_API_BASE_URL
+go build -o bin/gtqa ./cmd/gtqa
 ```
+
+## Commands (Phase 1)
+
+```bash
+# Fleet inventory from Manager /subs
+./bin/gtqa fleet sync
+./bin/gtqa fleet sync --json
+
+# Smoke-test provision proxy (status, config, logs, debug/vars)
+./bin/gtqa smoke 11
+
+# Observe-only remote soak (default 30m, 5m interval)
+./bin/gtqa soak run --server-id 11 --duration 30m
+./bin/gtqa soak run --server-id 11 --duration 30m --interval 5m
+```
+
+Artifacts land in `reports/{timestamp}-{server_id}/` (`metrics.tsv`, `soak.log`, `issues.log`, `run.env`).
+
+**Legacy:** `./scripts/smoke-manager.sh 11` — same checks as `gtqa smoke`; kept as fallback.
 
 ## Reference docs (sibling repo)
 
 | Topic | Path in `go-trader` |
 |-------|---------------------|
 | Manager API spec | `.gstack/qa-reports/manager-fleet-api-spec.md` |
-| Fleet QA design | `.gstack/qa-reports/fleet_qa_automation_design_0691c1b0.plan.md` |
-| Local soak scripts (port from) | `.gstack/qa-reports/soak-*.sh` |
-| Gates G1–G7 | `.gstack/qa-reports/soak-analyze.sh`, `README.md` |
+| Fleet QA design | `.gstack/qa-reports/fleet_qa_automation_design_0691c1b0.md` |
+| Local soak scripts (ported from) | `.gstack/qa-reports/soak-monitor.sh`, `soak-analyze.sh` |
+| Gates G1–G7 | `.gstack/qa-reports/README.md` |
 
-## Target layout
+## Phase 1 plan
+
+[docs/phase-1.md](docs/phase-1.md) — fleet sync, smoke, 30m remote soak on one `server_id`.
+
+## Package layout
 
 ```
-cmd/qa-orchestrator/
+cmd/gtqa/           # CLI (fleet, smoke, soak)
+internal/config/    # MANAGER_* env
 internal/manager/   # /subs, /provision/servers/{id}/*
-internal/sampler/   # port soak-monitor.sh
-internal/analyze/   # port soak-analyze.sh
-internal/report/
+internal/fleet/     # eligibility join
+internal/metrics/   # TSV contract (soak-monitor parity)
+internal/sampler/   # remote observe loop
+reports/            # gitignored run artifacts
 ```
-
-## Phase 1
-
-Manager client + `/subs` fleet table + remote sampling on `server_id=11`.

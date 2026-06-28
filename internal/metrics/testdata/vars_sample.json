@@ -1,0 +1,21 @@
+{
+  "ws_messages_received": "100",
+  "bus_drops": "0",
+  "bus_publishes": "50",
+  "ticker_messages_parsed": "10",
+  "private_messages_parsed": "20",
+  "kline_messages_parsed": "30",
+  "order_create_ok": "1",
+  "order_amend_ok": "2",
+  "order_cancel_ok": "3",
+  "order_filter_cancel": "4",
+  "order_create_blocked_position": "5",
+  "position_opened": "6",
+  "position_reset": "7",
+  "position_reset_sl": "8",
+  "position_reset_tp": "9",
+  "position_reset_cancel": "10",
+  "position_reset_other": "11",
+  "algo_paused": "12",
+  "algo_resumed_ok": "13"
+}

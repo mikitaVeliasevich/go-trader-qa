@@ -1,0 +1,80 @@
+{
+  "ok": true,
+  "db_subs": [
+    {
+      "id": 1,
+      "uid": 100001,
+      "external_id": "100001",
+      "username": "sub-no-server",
+      "exchange": "bybit",
+      "title": null,
+      "notes": null
+    },
+    {
+      "id": 2,
+      "uid": 200002,
+      "external_id": "200002",
+      "username": "sub-inactive",
+      "exchange": "bybit",
+      "title": null,
+      "notes": null
+    },
+    {
+      "id": 7,
+      "uid": 514690847,
+      "external_id": "514690847",
+      "username": "yatradetestsub1",
+      "exchange": "bybit",
+      "title": null,
+      "notes": "test run long/short"
+    }
+  ],
+  "sync_data": {
+    "1": {
+      "subaccount_id": 1,
+      "has_server": false,
+      "server_id": null,
+      "app_is_active": null,
+      "app_is_running": null,
+      "deployed_image_hash": "",
+      "strategy_symbols": [],
+      "blacklist_symbols": [],
+      "warnings": [],
+      "data_updated_at": "2026-06-26T13:37:13.574021+00:00"
+    },
+    "2": {
+      "subaccount_id": 2,
+      "has_server": true,
+      "server_id": 23,
+      "app_is_active": false,
+      "app_is_running": null,
+      "deployed_image_hash": "abc123def456",
+      "strategy_symbols": [],
+      "blacklist_symbols": [],
+      "warnings": [],
+      "data_updated_at": "2026-06-26T13:37:13.574021+00:00"
+    },
+    "7": {
+      "subaccount_id": 7,
+      "has_server": true,
+      "server_id": 11,
+      "app_is_active": true,
+      "app_is_running": null,
+      "deployed_image_hash": "8659e4e089e7",
+      "strategy_symbols": [],
+      "blacklist_symbols": [],
+      "warnings": [],
+      "data_updated_at": "2026-06-26T13:37:13.574021+00:00"
+    }
+  },
+  "categories": {
+    "7": [
+      {
+        "id": 1,
+        "name": "dev subs",
+        "color": "#d59010"
+      }
+    ]
+  },
+  "has_api_keys_uids": [514690847]
+}
