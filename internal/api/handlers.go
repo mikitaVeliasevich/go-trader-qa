@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -86,12 +87,15 @@ func (s *Server) handleFleetSync(w http.ResponseWriter, r *http.Request) {
 }
 
 type createBatchRequest struct {
+	Mode           string `json:"mode"`
+	Window         string `json:"window"`
 	ServerIDs      []int  `json:"server_ids"`
 	Duration       string `json:"duration"`
 	Interval       string `json:"interval"`
 	Profile        string `json:"profile"`
 	Concurrency    int    `json:"concurrency"`
 	SkipIneligible *bool  `json:"skip_ineligible"`
+	Analyze        *bool  `json:"analyze"`
 }
 
 func (s *Server) handleBatchCreate(w http.ResponseWriter, r *http.Request) {
@@ -105,9 +109,32 @@ func (s *Server) handleBatchCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dur, err := metrics.ParseDuration(strings.TrimSpace(req.Duration))
-	if err != nil || dur <= 0 {
-		writeError(w, http.StatusBadRequest, "duration is required (e.g. 30m)")
+	mode := strings.TrimSpace(strings.ToLower(req.Mode))
+	if mode == "" {
+		mode = batch.ModeSoak
+	}
+
+	var (
+		dur    time.Duration
+		window metrics.WindowSpec
+		err    error
+	)
+
+	switch mode {
+	case batch.ModeAnalyze:
+		window, err = batch.ParseBatchWindow(req.Window)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	case batch.ModeSoak:
+		dur, err = metrics.ParseDuration(strings.TrimSpace(req.Duration))
+		if err != nil || dur <= 0 {
+			writeError(w, http.StatusBadRequest, "duration is required for soak mode (e.g. 30m)")
+			return
+		}
+	default:
+		writeError(w, http.StatusBadRequest, "mode must be soak or analyze")
 		return
 	}
 
@@ -140,9 +167,31 @@ func (s *Server) handleBatchCreate(w http.ResponseWriter, r *http.Request) {
 		skipIneligible = *req.SkipIneligible
 	}
 
+	doAnalyze := true
+	if req.Analyze != nil {
+		doAnalyze = *req.Analyze
+	}
+
 	batchID := "batch-" + time.Now().UTC().Format("20060102T150405Z")
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
+
+	initialBatch := batch.SoakBatch{
+		ID:             batchID,
+		Mode:           mode,
+		ServerIDs:      req.ServerIDs,
+		Duration:       dur.String(),
+		Interval:       iv.String(),
+		Concurrency:    concurrency,
+		Profile:        profile,
+		SkipIneligible: skipIneligible,
+		Status:         batch.BatchRunning,
+		StartedAt:      time.Now().UTC(),
+	}
+	if mode == batch.ModeAnalyze {
+		initialBatch.Duration = ""
+		initialBatch.Window = window.String()
+	}
 
 	s.batch.mu.Lock()
 	if s.batch.active == nil {
@@ -150,17 +199,7 @@ func (s *Server) handleBatchCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.batch.active[batchID] = &activeBatch{
 		progress: batch.Progress{
-			Batch: batch.SoakBatch{
-				ID:             batchID,
-				ServerIDs:      req.ServerIDs,
-				Duration:       dur.String(),
-				Interval:       iv.String(),
-				Concurrency:    concurrency,
-				Profile:        profile,
-				SkipIneligible: skipIneligible,
-				Status:         batch.BatchRunning,
-				StartedAt:      time.Now().UTC(),
-			},
+			Batch:   initialBatch,
 			Running: true,
 		},
 		cancel: cancel,
@@ -173,13 +212,15 @@ func (s *Server) handleBatchCreate(w http.ResponseWriter, r *http.Request) {
 		result, runErr := batch.Run(ctx, s.client, batch.RunOptions{
 			Spec: batch.BatchSpec{
 				BatchID:        batchID,
+				Mode:           mode,
+				Window:         window,
 				ServerIDs:      req.ServerIDs,
 				Duration:       dur,
 				Interval:       iv,
 				Concurrency:    concurrency,
 				Profile:        profile,
 				SkipIneligible: skipIneligible,
-				Analyze:        true,
+				Analyze:        doAnalyze,
 				ArtifactsDir:   s.cfg.QAArtifactsDir,
 				AccountID:      s.cfg.ManagerAccountID,
 			},
@@ -246,6 +287,8 @@ func batchListItem(summary batch.BatchSummary, running bool) map[string]any {
 	b := summary.Batch
 	item := map[string]any{
 		"id":             b.ID,
+		"mode":           b.Mode,
+		"window":         b.Window,
 		"status":         b.Status,
 		"running":        running,
 		"started_at":     b.StartedAt.UTC().Format(time.RFC3339),
@@ -282,6 +325,118 @@ func (s *Server) handleBatchGet(w http.ResponseWriter, r *http.Request) {
 		"pass_count":     summary.Pass,
 		"fail_count":     summary.Fail,
 		"skipped_count":  summary.Skipped,
+	})
+}
+
+const batchDeleteWaitTimeout = 2 * time.Minute
+
+var (
+	errBatchRunningNoWait = errors.New("batch is running; delete individually or cancel first")
+	errBatchDeleteTimeout = errors.New("batch did not stop in time")
+)
+
+type bulkDeleteRequest struct {
+	BatchIDs []string `json:"batch_ids"`
+}
+
+type bulkDeleteFailure struct {
+	ID    string `json:"id"`
+	Error string `json:"error"`
+}
+
+func (s *Server) waitBatchDone(batchID string, timeout time.Duration) error {
+	s.batch.mu.RLock()
+	ab, ok := s.batch.active[batchID]
+	s.batch.mu.RUnlock()
+	if !ok {
+		return nil
+	}
+	select {
+	case <-ab.done:
+		return nil
+	case <-time.After(timeout):
+		return errBatchDeleteTimeout
+	}
+}
+
+func (s *Server) deleteBatch(batchID string, waitForCancel bool) error {
+	if err := batch.ValidateBatchID(batchID); err != nil {
+		return err
+	}
+
+	s.batch.mu.RLock()
+	ab, active := s.batch.active[batchID]
+	s.batch.mu.RUnlock()
+
+	if active {
+		if !waitForCancel {
+			return errBatchRunningNoWait
+		}
+		ab.cancel()
+		if err := s.waitBatchDone(batchID, batchDeleteWaitTimeout); err != nil {
+			return err
+		}
+	}
+
+	return batch.DeleteBatch(s.cfg.QAArtifactsDir, batchID)
+}
+
+func (s *Server) handleBatchDelete(w http.ResponseWriter, r *http.Request) {
+	batchID := r.PathValue("batch_id")
+	err := s.deleteBatch(batchID, true)
+	if err != nil {
+		switch {
+		case errors.Is(err, batch.ErrInvalidBatchID):
+			writeError(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, batch.ErrBatchNotFound):
+			writeError(w, http.StatusNotFound, "batch not found")
+		case errors.Is(err, errBatchDeleteTimeout):
+			writeError(w, http.StatusRequestTimeout, err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": batchID})
+}
+
+func (s *Server) handleBatchBulkDelete(w http.ResponseWriter, r *http.Request) {
+	var req bulkDeleteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if len(req.BatchIDs) == 0 {
+		writeError(w, http.StatusBadRequest, "batch_ids is required")
+		return
+	}
+	if len(req.BatchIDs) > 50 {
+		writeError(w, http.StatusBadRequest, "batch_ids exceeds limit of 50")
+		return
+	}
+
+	deleted := make([]string, 0, len(req.BatchIDs))
+	failed := make([]bulkDeleteFailure, 0)
+
+	for _, batchID := range req.BatchIDs {
+		batchID = strings.TrimSpace(batchID)
+		if batchID == "" {
+			continue
+		}
+		if err := s.deleteBatch(batchID, false); err != nil {
+			msg := err.Error()
+			if errors.Is(err, errBatchRunningNoWait) {
+				msg = errBatchRunningNoWait.Error()
+			}
+			failed = append(failed, bulkDeleteFailure{ID: batchID, Error: msg})
+			continue
+		}
+		deleted = append(deleted, batchID)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"deleted": deleted,
+		"failed":  failed,
 	})
 }
 

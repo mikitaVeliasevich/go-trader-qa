@@ -1,6 +1,10 @@
 package batch
 
-import "time"
+import (
+	"time"
+
+	"github.com/dlisovsky/go-trader-qa/internal/metrics"
+)
 
 const (
 	BatchPending   = "pending"
@@ -22,9 +26,16 @@ const (
 
 const jobStagger = 30 * time.Second
 
+const (
+	ModeSoak    = "soak"
+	ModeAnalyze = "analyze"
+)
+
 // SoakBatch describes one multi-server soak run.
 type SoakBatch struct {
 	ID             string     `json:"id"`
+	Mode           string     `json:"mode,omitempty"`
+	Window         string     `json:"window,omitempty"`
 	ServerIDs      []int      `json:"server_ids"`
 	Duration       string     `json:"duration"`
 	Interval       string     `json:"interval"`
@@ -54,6 +65,8 @@ type SoakJob struct {
 // BatchSpec configures a batch run.
 type BatchSpec struct {
 	BatchID        string
+	Mode           string
+	Window         metrics.WindowSpec
 	ServerIDs      []int
 	Duration       time.Duration
 	Interval       time.Duration

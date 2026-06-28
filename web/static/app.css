@@ -384,6 +384,21 @@ input[type="checkbox"] {
 .tag.warn { background: #fff0e0; color: var(--warn); }
 .tag.muted { background: #ebecf0; color: var(--muted); }
 
+.btn-link.delete-batch {
+  color: var(--fail);
+  margin-left: 8px;
+}
+
+.batches-toolbar {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.batches-toolbar .btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .cta-row {
   padding: 16px 20px;
   display: flex;
@@ -692,6 +707,20 @@ dialog {
   font-family: inherit;
 }
 
+dialog[open] {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+
+#test-config-dialog[open] {
+  width: min(480px, calc(100vw - 32px));
+  max-width: none;
+}
+
 dialog h3 { margin-bottom: 12px; }
 dialog p { margin-bottom: 20px; color: var(--muted); }
 
@@ -699,6 +728,37 @@ dialog p { margin-bottom: 20px; color: var(--muted); }
   display: flex;
   gap: 12px;
   justify-content: flex-end;
+}
+
+.test-mode-fieldset {
+  border: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.test-mode-fieldset legend {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#test-soak-fields,
+#test-analyze-fields {
+  margin-bottom: 12px;
+}
+
+.test-advanced {
+  margin: 12px 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .stale-warning {

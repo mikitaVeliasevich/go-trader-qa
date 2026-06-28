@@ -5,6 +5,7 @@
     fleet: [],
     syncedAt: null,
     selected: new Set(),
+    selectedBatches: new Set(),
     eligibleOnly: false,
     search: '',
     activeBatchId: null,
@@ -67,6 +68,8 @@
     completed_at: (b) => (b.completed_at ? new Date(b.completed_at).getTime() : 0),
     estimated_end_at: (b) => batchEndMs(b) || 0,
     duration: (b) => parseDuration(b.duration) || 0,
+    mode: (b) => b.mode || 'soak',
+    window: (b) => b.window || '',
     job_count: (b) => b.job_count ?? 0,
     pass_count: (b) => b.pass_count ?? 0,
     fail_count: (b) => b.fail_count ?? 0,
@@ -105,7 +108,13 @@
     chipEligible: $('chip-eligible'),
     btnSelectAll: $('btn-select-all'),
     selectionLabel: $('selection-label'),
-    btnStart: $('btn-start'),
+    btnTest: $('btn-test'),
+    testDialog: $('test-config-dialog'),
+    testForm: $('test-config-form'),
+    testSelectionSummary: $('test-selection-summary'),
+    testSoakFields: $('test-soak-fields'),
+    testAnalyzeFields: $('test-analyze-fields'),
+    analyzeWindow: $('analyze-window'),
     soakDuration: $('soak-duration'),
     soakProfile: $('soak-profile'),
     recentBatches: $('recent-batches'),
@@ -114,6 +123,15 @@
     batchesContent: $('batches-content'),
     batchesCount: $('batches-count'),
     batchesTbody: $('batches-tbody'),
+    batchesSelectAll: $('batches-select-all'),
+    batchesSelectAllHeader: $('batches-select-all-header'),
+    batchesSelectionLabel: $('batches-selection-label'),
+    btnBatchesDelete: $('btn-batches-delete'),
+    deleteBatchDialog: $('delete-batch-dialog'),
+    deleteBatchTitle: $('delete-batch-title'),
+    deleteBatchMessage: $('delete-batch-message'),
+    deleteBatchCancel: $('delete-batch-cancel'),
+    deleteBatchConfirm: $('delete-batch-confirm'),
     batchEmpty: $('batch-empty'),
     batchContent: $('batch-content'),
     batchTitle: $('batch-title'),
@@ -125,6 +143,7 @@
     batchTimeLabel: $('batch-time-label'),
     batchProgress: $('batch-progress'),
     btnCancel: $('btn-cancel'),
+    btnDelete: $('btn-delete'),
     batchDetailPanel: $('batch-detail-panel'),
     batchReportPanel: $('batch-report-panel'),
     jobsTbody: $('jobs-tbody'),
@@ -300,7 +319,7 @@
 
     const sel = state.selected.size;
     els.selectionLabel.textContent = `${sel} selected`;
-    els.btnStart.disabled = sel === 0;
+    els.btnTest.disabled = sel === 0;
     updateHeader();
   }
 
@@ -546,8 +565,199 @@
     highlightRecentBatch();
   }
 
+  function visibleBatchesOnPage() {
+    return sortRows(state.allBatches, state.batchesSort.key, state.batchesSort.dir, batchesSortGetters);
+  }
+
+  function updateBatchesSelectionUI() {
+    const pageIds = visibleBatchesOnPage().map((b) => b.id);
+    const selectedOnPage = pageIds.filter((id) => state.selectedBatches.has(id));
+    const n = state.selectedBatches.size;
+    els.batchesSelectionLabel.textContent = `${n} selected`;
+    els.btnBatchesDelete.disabled = n === 0;
+
+    if (els.batchesSelectAllHeader) {
+      const allOnPage = pageIds.length > 0 && selectedOnPage.length === pageIds.length;
+      const someOnPage = selectedOnPage.length > 0 && !allOnPage;
+      els.batchesSelectAllHeader.checked = allOnPage;
+      els.batchesSelectAllHeader.indeterminate = someOnPage;
+    }
+  }
+
+  function batchDeleteMessage(ids) {
+    const batches = ids.map((id) => state.allBatches.find((b) => b.id === id) || { id });
+    const runningCount = batches.filter((b) => b.running || b.status === 'running').length;
+    if (ids.length === 1) {
+      const b = batches[0];
+      const label = shortBatchId(b.id);
+      if (b.running || b.status === 'running') {
+        return `${label} is still running. It will be cancelled first, then deleted. All artifacts will be permanently removed.`;
+      }
+      return `Delete ${label}? All job artifacts, metrics, and reports for this batch will be permanently removed.`;
+    }
+    let msg = `Delete ${ids.length} batches? Completed runs will be removed. Running batches will be skipped — delete those individually.`;
+    if (runningCount > 0) {
+      msg += ` ${runningCount} selected batch${runningCount === 1 ? '' : 'es'} are still running and will be skipped.`;
+    }
+    return msg;
+  }
+
+  function confirmDeleteBatches(ids) {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (!unique.length) return Promise.resolve(false);
+
+    const isBulk = unique.length > 1;
+    els.deleteBatchTitle.textContent = isBulk ? 'Delete batches?' : 'Delete batch?';
+    els.deleteBatchMessage.textContent = batchDeleteMessage(unique);
+
+    return new Promise((resolve) => {
+      const dlg = els.deleteBatchDialog;
+      const onCancel = () => {
+        cleanup();
+        if (dlg.open) dlg.close();
+        resolve(false);
+      };
+      const onConfirm = () => {
+        cleanup();
+        dlg.close();
+        resolve(true);
+      };
+      const cleanup = () => {
+        els.deleteBatchCancel.removeEventListener('click', onCancel);
+        els.deleteBatchConfirm.removeEventListener('click', onConfirm);
+        dlg.removeEventListener('cancel', onCancel);
+      };
+      els.deleteBatchCancel.addEventListener('click', onCancel);
+      els.deleteBatchConfirm.addEventListener('click', onConfirm);
+      dlg.addEventListener('cancel', onCancel);
+      dlg.showModal();
+    });
+  }
+
+  function formatBulkDeleteToast(result) {
+    const deleted = result.deleted || [];
+    const failed = result.failed || [];
+    const runningSkipped = failed.filter((f) =>
+      (f.error || '').includes('batch is running')
+    ).length;
+    const otherFailed = failed.length - runningSkipped;
+
+    if (deleted.length && !failed.length) {
+      return { msg: `Deleted ${deleted.length} batch${deleted.length === 1 ? '' : 'es'}.`, isError: false };
+    }
+    if (deleted.length && failed.length) {
+      let msg = `Deleted ${deleted.length}.`;
+      if (runningSkipped) msg += ` Skipped ${runningSkipped} running.`;
+      if (otherFailed) {
+        const first = failed.find((f) => !(f.error || '').includes('batch is running'));
+        if (first?.error) msg += ` ${first.error}`;
+      }
+      return { msg, isError: false };
+    }
+    const reason = failed[0]?.error || 'Unknown error';
+    return { msg: `No batches deleted. ${reason}`, isError: true };
+  }
+
+  async function runDeleteBatches(ids, options) {
+    options = options || {};
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (!unique.length) return;
+
+    const confirmed = await confirmDeleteBatches(unique);
+    if (!confirmed) return;
+
+    const isSingle = unique.length === 1;
+    const confirmBtn = els.deleteBatchConfirm;
+    const detailBtn = els.btnDelete;
+    const bulkBtn = els.btnBatchesDelete;
+    let triggerBtn = options.fromDetail ? detailBtn : bulkBtn;
+
+    if (isSingle && !options.fromDetail) triggerBtn = null;
+
+    const prevConfirm = confirmBtn.textContent;
+    const prevDetail = detailBtn?.textContent;
+    const prevBulk = bulkBtn?.textContent;
+
+    confirmBtn.disabled = true;
+    if (detailBtn) {
+      detailBtn.disabled = true;
+      detailBtn.textContent = 'Deleting…';
+      detailBtn.setAttribute('aria-busy', 'true');
+    }
+    if (bulkBtn) {
+      bulkBtn.disabled = true;
+      bulkBtn.textContent = 'Deleting…';
+    }
+
+    const runningSingle = isSingle && (() => {
+      const b = state.allBatches.find((x) => x.id === unique[0]);
+      return b && (b.running || b.status === 'running');
+    })();
+    if (runningSingle) {
+      showToast('Cancelling and deleting batch…');
+    }
+
+    try {
+      if (isSingle) {
+        await api('/api/batches/' + encodeURIComponent(unique[0]), { method: 'DELETE' });
+        showToast('Batch deleted.');
+      } else {
+        const result = await api('/api/batches/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ batch_ids: unique }),
+        });
+        const toast = formatBulkDeleteToast(result);
+        showToast(toast.msg, toast.isError);
+        (result.deleted || []).forEach((id) => state.selectedBatches.delete(id));
+      }
+
+      const deletedSet = new Set(unique);
+      if (state.activeBatchId && deletedSet.has(state.activeBatchId)) {
+        state.activeBatchId = null;
+        state.jobs = [];
+        stopPolling();
+        if (options.fromDetail || state.view === 'batch') {
+          setView('batches');
+        }
+        updateBatchPanelsVisibility();
+      }
+
+      if (isSingle) {
+        state.selectedBatches.delete(unique[0]);
+      } else {
+        state.selectedBatches.clear();
+      }
+
+      await loadAllBatches();
+      if (state.view === 'batch' && state.activeBatchId) {
+        await refreshBatch();
+      }
+      updateHash();
+    } catch (e) {
+      const msg = e.message || String(e);
+      if (msg.includes('did not stop')) {
+        showToast('Batch is still stopping. Wait a moment, then try again.', true);
+      } else {
+        showToast('Delete failed: ' + msg, true);
+      }
+    } finally {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = prevConfirm;
+      if (detailBtn) {
+        detailBtn.disabled = false;
+        detailBtn.textContent = prevDetail;
+        detailBtn.removeAttribute('aria-busy');
+      }
+      if (bulkBtn) {
+        bulkBtn.textContent = prevBulk;
+      }
+      updateBatchesSelectionUI();
+    }
+  }
+
   function renderBatchesTable() {
-    const batches = sortRows(state.allBatches, state.batchesSort.key, state.batchesSort.dir, batchesSortGetters);
+    const batches = visibleBatchesOnPage();
     updateSortHeaders('batches', state.batchesSort);
     els.batchesCount.textContent = batches.length ? `${batches.length} run${batches.length === 1 ? '' : 's'}` : '';
 
@@ -562,22 +772,30 @@
         const pass = b.pass_count ?? 0;
         const fail = b.fail_count ?? 0;
         const shortId = b.id.length > 20 ? b.id.slice(0, 20) + '…' : b.id;
+        const checked = state.selectedBatches.has(b.id);
         const endClass = timing.endIsEstimate ? ' class="col-time end-estimate"' : ' class="col-time"';
+        const durationLabel = b.mode === 'analyze' ? (b.window || '—') : timing.duration;
+        const ariaBatch = esc(shortBatchId(b.id));
         return `<tr${cls}>
+          <td class="col-check"><input type="checkbox" class="batch-select" data-batch="${esc(b.id)}" aria-label="Select batch ${ariaBatch}" ${checked ? 'checked' : ''}></td>
           <td>${batchStatusTag(b)}</td>
           <td class="col-time">${esc(timing.remaining)}</td>
           <td class="col-time" title="${esc(timing.startTitle)}">${esc(timing.start)}</td>
           <td${endClass} title="${esc(timing.endTitle)}">${esc(timing.end)}</td>
-          <td class="col-time">${esc(timing.duration)}</td>
+          <td class="col-time">${esc(durationLabel)}</td>
+          <td>${esc(b.mode || 'soak')}</td>
+          <td>${esc(b.window || '—')}</td>
           <td class="batch-id-cell" title="${esc(b.id)}">${esc(shortId)}</td>
           <td><span class="tag pass">${pass}</span></td>
           <td><span class="tag fail">${fail}</span></td>
           <td>
             <button type="button" class="btn-link open-batch" data-batch="${esc(b.id)}">Open</button>
+            <button type="button" class="btn-link delete-batch" data-batch="${esc(b.id)}" aria-label="Delete batch ${ariaBatch}">Delete</button>
           </td>
         </tr>`;
       })
       .join('');
+    updateBatchesSelectionUI();
   }
 
   async function loadAllBatches() {
@@ -723,10 +941,15 @@
     const profileBits = [timing.profile, batch.concurrency ? `c=${batch.concurrency}` : ''].filter(Boolean);
     const rows = [
       ['Batch ID', batch.id || state.activeBatchId || '—', batch.id || state.activeBatchId || ''],
+      ['Mode', batch.mode || 'soak', ''],
       ['Started', timing.start, timing.startTitle],
-      ['Duration', timing.duration, ''],
-      [endLabel, timing.end, timing.endTitle],
     ];
+    if (batch.mode === 'analyze') {
+      rows.push(['Window', batch.window || '—', '']);
+    } else {
+      rows.push(['Duration', timing.duration, '']);
+    }
+    rows.push([endLabel, timing.end, timing.endTitle]);
     if (profileBits.length) {
       rows.push(['Profile', profileBits.join(' · '), '']);
     }
@@ -767,7 +990,8 @@
     state.batchTiming = timing;
 
     const friendlyTitle = shortBatchId(state.activeBatchId);
-    els.batchTitle.textContent = friendlyTitle + ' soak';
+    const modeLabel = batch.mode === 'analyze' ? 'analyze' : 'soak';
+    els.batchTitle.textContent = friendlyTitle + ' ' + modeLabel;
     els.batchTitle.title = state.activeBatchId || '';
     els.batchStatusBadge.textContent = batch.status || (running ? 'running' : '—');
     els.batchStatusBadge.className = 'tag ' + (running ? 'run' : batch.status === 'complete' ? 'pass' : 'muted');
@@ -789,6 +1013,7 @@
 
     els.batchProgress.style.width = total ? `${(done / total) * 100}%` : '0%';
     els.btnCancel.classList.toggle('hidden', !running);
+    els.btnDelete?.classList.remove('hidden');
 
     renderJobsTable();
     highlightRecentBatch();
@@ -805,6 +1030,7 @@
       state.batchRunning = false;
       state.batchTiming = null;
       state.batchProfile = 'wss-only';
+      els.btnDelete?.classList.add('hidden');
       updateHeader();
       return;
     }
@@ -829,19 +1055,34 @@
     }
   }
 
-  async function startBatch() {
+  function syncTestModeFields() {
+    const mode = els.testForm?.querySelector('input[name="test-mode"]:checked')?.value || 'soak';
+    const isAnalyze = mode === 'analyze';
+    els.testSoakFields?.classList.toggle('hidden', isAnalyze);
+    els.testAnalyzeFields?.classList.toggle('hidden', !isAnalyze);
+  }
+
+  function openTestDialog() {
+    const ids = [...state.selected];
+    if (!ids.length) return;
+    els.testSelectionSummary.textContent = `${ids.length} server${ids.length === 1 ? '' : 's'} selected`;
+    syncTestModeFields();
+    els.testDialog.showModal();
+  }
+
+  async function submitTestBatch() {
     const ids = [...state.selected];
     if (!ids.length) return;
 
+    const mode = els.testForm.querySelector('input[name="test-mode"]:checked')?.value || 'soak';
     const profile = els.soakProfile.value;
+    const windowVal = els.analyzeWindow.value;
+    const durationVal = els.soakDuration.value;
+
     if (profile === 'lifecycle') {
       const dlg = els.lifecycleDialog;
       const ok = await new Promise((resolve) => {
-        dlg.addEventListener(
-          'close',
-          () => resolve(dlg.returnValue === 'confirm'),
-          { once: true }
-        );
+        dlg.addEventListener('close', () => resolve(dlg.returnValue === 'confirm'), { once: true });
         dlg.showModal();
       });
       if (!ok) {
@@ -850,19 +1091,28 @@
       }
     }
 
-    els.btnStart.disabled = true;
-    els.btnStart.textContent = 'Starting…';
+    const payload = {
+      server_ids: ids,
+      mode,
+      profile,
+      interval: '5m',
+    };
+    if (mode === 'analyze') {
+      payload.window = windowVal;
+    } else {
+      payload.duration = durationVal;
+    }
+
+    const runBtn = $('test-run');
+    runBtn.disabled = true;
+    runBtn.textContent = 'Starting…';
     try {
       const res = await api('/api/batches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          server_ids: ids,
-          duration: els.soakDuration.value,
-          interval: '5m',
-          profile,
-        }),
+        body: JSON.stringify(payload),
       });
+      els.testDialog.close();
       state.activeBatchId = res.batch_id;
       setView('batch');
       await refreshBatch();
@@ -872,8 +1122,8 @@
     } catch (e) {
       showToast('Start failed: ' + e.message, true);
     } finally {
-      els.btnStart.textContent = 'Start soak';
-      els.btnStart.disabled = state.selected.size === 0;
+      runBtn.disabled = false;
+      runBtn.textContent = 'Run test';
     }
   }
 
@@ -1053,7 +1303,15 @@
       renderFleet();
     });
 
-    els.btnStart.addEventListener('click', startBatch);
+    els.btnTest.addEventListener('click', openTestDialog);
+
+    els.testForm?.addEventListener('change', (e) => {
+      if (e.target.name === 'test-mode') syncTestModeFields();
+    });
+
+    $('test-cancel')?.addEventListener('click', () => els.testDialog.close());
+
+    $('test-run')?.addEventListener('click', () => submitTestBatch());
 
     els.btnCancel.addEventListener('click', async () => {
       if (!state.activeBatchId) return;
@@ -1085,10 +1343,50 @@
     });
 
     els.batchesTbody.addEventListener('click', (e) => {
+      const deleteBtn = e.target.closest('.delete-batch');
+      if (deleteBtn?.dataset.batch) {
+        runDeleteBatches([deleteBtn.dataset.batch]);
+        return;
+      }
       const openBatch = e.target.closest('.open-batch');
       if (!openBatch) return;
       selectBatch(openBatch.dataset.batch);
       setView('batch');
+    });
+
+    els.batchesTbody.addEventListener('change', (e) => {
+      const cb = e.target;
+      if (!cb.classList?.contains('batch-select')) return;
+      const id = cb.dataset.batch;
+      if (cb.checked) state.selectedBatches.add(id);
+      else state.selectedBatches.delete(id);
+      updateBatchesSelectionUI();
+    });
+
+    els.batchesSelectAll?.addEventListener('click', () => {
+      visibleBatchesOnPage().forEach((b) => {
+        if (b.id) state.selectedBatches.add(b.id);
+      });
+      renderBatchesTable();
+    });
+
+    els.batchesSelectAllHeader?.addEventListener('change', (e) => {
+      const pageIds = visibleBatchesOnPage().map((b) => b.id);
+      if (e.target.checked) {
+        pageIds.forEach((id) => state.selectedBatches.add(id));
+      } else {
+        pageIds.forEach((id) => state.selectedBatches.delete(id));
+      }
+      renderBatchesTable();
+    });
+
+    els.btnBatchesDelete?.addEventListener('click', () => {
+      runDeleteBatches([...state.selectedBatches]);
+    });
+
+    els.btnDelete?.addEventListener('click', () => {
+      if (!state.activeBatchId) return;
+      runDeleteBatches([state.activeBatchId], { fromDetail: true });
     });
 
     els.btnBackBatch.addEventListener('click', () => {

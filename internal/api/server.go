@@ -45,6 +45,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/batches", s.handleBatchCreate)
 	s.mux.HandleFunc("GET /api/batches", s.handleBatchList)
 	s.mux.HandleFunc("GET /api/batches/{batch_id}", s.handleBatchGet)
+	s.mux.HandleFunc("DELETE /api/batches/{batch_id}", s.handleBatchDelete)
+	s.mux.HandleFunc("POST /api/batches/bulk-delete", s.handleBatchBulkDelete)
 	s.mux.HandleFunc("POST /api/batches/{batch_id}/cancel", s.handleBatchCancel)
 	s.mux.HandleFunc("GET /api/batches/{batch_id}/summary", s.handleBatchSummary)
 	s.mux.HandleFunc("GET /api/batches/{batch_id}/jobs/{server_id}", s.handleJobGet)

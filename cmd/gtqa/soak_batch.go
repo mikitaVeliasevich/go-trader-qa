@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/dlisovsky/go-trader-qa/internal/analyze"
 	"github.com/dlisovsky/go-trader-qa/internal/batch"
@@ -20,6 +21,8 @@ import (
 func newSoakBatchCmd() *cobra.Command {
 	var (
 		serverIDs      string
+		mode           string
+		window         string
 		duration       string
 		interval       string
 		concurrency    int
@@ -30,25 +33,27 @@ func newSoakBatchCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "batch",
-		Short: "Run parallel observe-only soaks across server IDs",
+		Short: "Run parallel observe-only soaks or retrospective analyze across server IDs",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSoakBatch(serverIDs, duration, interval, concurrency, profile, skipIneligible, doAnalyze)
+			return runSoakBatch(serverIDs, mode, window, duration, interval, concurrency, profile, skipIneligible, doAnalyze)
 		},
 	}
 
 	cmd.Flags().StringVar(&serverIDs, "server-ids", "", "comma-separated server IDs (required)")
+	cmd.Flags().StringVar(&mode, "mode", batch.ModeSoak, "batch mode: soak or analyze")
+	cmd.Flags().StringVar(&window, "window", "", "analyze window: 5m, 30m, 1h, 4h, 8h, lifecycle (required for analyze mode)")
 	cmd.Flags().StringVar(&duration, "duration", "30m", "soak duration per job (e.g. 30m, 4h)")
 	cmd.Flags().StringVar(&interval, "interval", "5m", "sample interval (e.g. 5m)")
 	cmd.Flags().IntVar(&concurrency, "concurrency", 2, "max parallel jobs")
 	cmd.Flags().StringVar(&profile, "profile", string(analyze.ProfileWSSOnly), "analyzer profile: wss-only or lifecycle")
 	cmd.Flags().BoolVar(&skipIneligible, "skip-ineligible", true, "skip servers not QA eligible")
-	cmd.Flags().BoolVar(&doAnalyze, "analyze", true, "run analyzer after each job")
+	cmd.Flags().BoolVar(&doAnalyze, "analyze", true, "run analyzer after each soak job")
 	_ = cmd.MarkFlagRequired("server-ids")
 
 	return cmd
 }
 
-func runSoakBatch(serverIDsStr, durationStr, intervalStr string, concurrency int, profile string, skipIneligible, doAnalyze bool) error {
+func runSoakBatch(serverIDsStr, mode, windowStr, durationStr, intervalStr string, concurrency int, profile string, skipIneligible, doAnalyze bool) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -59,9 +64,28 @@ func runSoakBatch(serverIDsStr, durationStr, intervalStr string, concurrency int
 		return err
 	}
 
-	dur, err := metrics.ParseDuration(durationStr)
-	if err != nil {
-		return fmt.Errorf("parse --duration: %w", err)
+	mode = strings.TrimSpace(strings.ToLower(mode))
+	if mode == "" {
+		mode = batch.ModeSoak
+	}
+
+	var (
+		dur          time.Duration
+		window       metrics.WindowSpec
+	)
+	switch mode {
+	case batch.ModeAnalyze:
+		window, err = batch.ParseBatchWindow(windowStr)
+		if err != nil {
+			return err
+		}
+	case batch.ModeSoak:
+		dur, err = metrics.ParseDuration(durationStr)
+		if err != nil {
+			return fmt.Errorf("parse --duration: %w", err)
+		}
+	default:
+		return fmt.Errorf("mode must be soak or analyze")
 	}
 	iv, err := metrics.ParseDuration(intervalStr)
 	if err != nil {
@@ -85,6 +109,8 @@ func runSoakBatch(serverIDsStr, durationStr, intervalStr string, concurrency int
 
 	result, err := batch.Run(ctx, client, batch.RunOptions{
 		Spec: batch.BatchSpec{
+			Mode:           mode,
+			Window:         window,
 			ServerIDs:      ids,
 			Duration:       dur,
 			Interval:       iv,

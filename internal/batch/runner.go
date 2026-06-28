@@ -29,8 +29,8 @@ func Run(ctx context.Context, client *manager.Client, opts RunOptions) (BatchRes
 	if len(spec.ServerIDs) == 0 {
 		return BatchResult{}, fmt.Errorf("server_ids is required")
 	}
-	if spec.Duration <= 0 {
-		return BatchResult{}, fmt.Errorf("duration must be positive")
+	if err := NormalizeBatchSpec(&spec); err != nil {
+		return BatchResult{}, err
 	}
 	if spec.Interval <= 0 {
 		spec.Interval = 5 * time.Minute
@@ -56,8 +56,14 @@ func Run(ctx context.Context, client *manager.Client, opts RunOptions) (BatchRes
 	}
 
 	started := time.Now().UTC()
+	windowLabel := ""
+	if spec.Mode == ModeAnalyze {
+		windowLabel = spec.Window.String()
+	}
 	batch := SoakBatch{
 		ID:             batchID,
+		Mode:           spec.Mode,
+		Window:         windowLabel,
 		ServerIDs:      append([]int(nil), spec.ServerIDs...),
 		Duration:       spec.Duration.String(),
 		Interval:       spec.Interval.String(),
@@ -67,6 +73,9 @@ func Run(ctx context.Context, client *manager.Client, opts RunOptions) (BatchRes
 		Status:         BatchRunning,
 		Dir:            batchDir,
 		StartedAt:      started,
+	}
+	if spec.Mode == ModeAnalyze {
+		batch.Duration = ""
 	}
 
 	if err := writeBatchEnv(batchDir, batch); err != nil {
@@ -127,8 +136,11 @@ func Run(ctx context.Context, client *manager.Client, opts RunOptions) (BatchRes
 		if jobs[i].Status == JobSkipped {
 			continue
 		}
-		delay := time.Duration(staggerIdx) * jobStagger
-		staggerIdx++
+		delay := time.Duration(0)
+		if spec.Mode == ModeSoak {
+			delay = time.Duration(staggerIdx) * jobStagger
+			staggerIdx++
+		}
 		idx := i
 
 		wg.Add(1)
@@ -196,13 +208,25 @@ func runOneJob(
 	mu.Unlock()
 
 	jobsDir := filepath.Join(batchDir, "jobs")
-	result, err := sampler.RemoteRun(ctx, client, sampler.Options{
-		ServerID:     jobs[idx].ServerID,
-		Duration:     spec.Duration,
-		Interval:     spec.Interval,
-		ArtifactsDir: jobsDir,
-		AccountID:    spec.AccountID,
-	})
+	var result sampler.RunResult
+	var err error
+
+	if spec.Mode == ModeAnalyze {
+		result, err = sampler.RetrospectiveRun(ctx, client, sampler.RetrospectiveOptions{
+			ServerID:     jobs[idx].ServerID,
+			Window:       spec.Window,
+			ArtifactsDir: jobsDir,
+			AccountID:    spec.AccountID,
+		})
+	} else {
+		result, err = sampler.RemoteRun(ctx, client, sampler.Options{
+			ServerID:     jobs[idx].ServerID,
+			Duration:     spec.Duration,
+			Interval:     spec.Interval,
+			ArtifactsDir: jobsDir,
+			AccountID:    spec.AccountID,
+		})
+	}
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -227,7 +251,8 @@ func runOneJob(
 		return
 	}
 
-	if spec.Analyze && result.RunDir != "" {
+	runAnalyze := spec.Mode == ModeAnalyze || spec.Analyze
+	if runAnalyze && result.RunDir != "" {
 		analyzeResult, aerr := analyze.Run(result.RunDir, analyze.Profile(spec.Profile))
 		if aerr != nil {
 			jobs[idx].Status = JobFailed
@@ -266,10 +291,12 @@ func emitProgress(onUpdate func(Progress), batch SoakBatch, jobs []SoakJob, runn
 
 func writeBatchEnv(batchDir string, batch SoakBatch) error {
 	content := fmt.Sprintf(
-		"batch_id=%s\nstatus=%s\nduration=%s\ninterval=%s\nconcurrency=%d\nprofile=%s\nskip_ineligible=%t\nstarted=%s\n",
+		"batch_id=%s\nmode=%s\nstatus=%s\nduration=%s\nwindow=%s\ninterval=%s\nconcurrency=%d\nprofile=%s\nskip_ineligible=%t\nstarted=%s\n",
 		batch.ID,
+		batch.Mode,
 		batch.Status,
 		batch.Duration,
+		batch.Window,
 		batch.Interval,
 		batch.Concurrency,
 		batch.Profile,
@@ -360,8 +387,16 @@ func writeSummaryMarkdown(batchDir string, summary BatchSummary) error {
 	batch := summary.Batch
 	fmt.Fprintf(&b, "# Batch summary: %s\n\n", batch.ID)
 	fmt.Fprintf(&b, "**Status:** %s  \n", batch.Status)
+	if batch.Mode != "" {
+		fmt.Fprintf(&b, "**Mode:** %s  \n", batch.Mode)
+	}
+	if batch.Window != "" {
+		fmt.Fprintf(&b, "**Window:** %s  \n", batch.Window)
+	}
 	fmt.Fprintf(&b, "**Profile:** %s  \n", batch.Profile)
-	fmt.Fprintf(&b, "**Duration:** %s  \n", batch.Duration)
+	if batch.Duration != "" {
+		fmt.Fprintf(&b, "**Duration:** %s  \n", batch.Duration)
+	}
 	fmt.Fprintf(&b, "**PASS:** %d  **FAIL:** %d  **SKIPPED:** %d\n\n", summary.Pass, summary.Fail, summary.Skipped)
 
 	b.WriteString("| Server | Pair | Status | Overall | Samples | Bus drops | Notes |\n")

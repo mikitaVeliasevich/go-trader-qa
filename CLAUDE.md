@@ -38,7 +38,9 @@ go build -o bin/gtqa-server ./cmd/gtqa-server
 ./bin/gtqa soak batch --server-ids 11 --duration 15s --interval 5s --concurrency 1
 
 # Control plane + Web UI
-./bin/gtqa-server   # http://127.0.0.1:8080
+go run ./cmd/gtqa-server             # dev: compile + run (no bin/gtqa-server step)
+make dev                             # dev: auto-restart on .go changes (air)
+./bin/gtqa-server                    # after go build, or CI/deploy
 ```
 
 ## Package map

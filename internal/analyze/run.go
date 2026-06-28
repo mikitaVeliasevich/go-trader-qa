@@ -91,6 +91,12 @@ func loadRunEnv(path string, meta *ReportMeta) {
 			meta.Duration = val
 		case "interval":
 			meta.Interval = val
+		case "mode":
+			meta.Mode = val
+		case "window":
+			meta.Window = val
+		case "metrics_estimated":
+			meta.MetricsEstimated = val == "true"
 		}
 	}
 	if err := scanner.Err(); err != nil {

@@ -13,7 +13,28 @@ go build -o bin/gtqa-server ./cmd/gtqa-server
 ## Quick start (Web UI)
 
 ```bash
-./bin/gtqa-server                    # http://127.0.0.1:8080 (JWT stays server-side)
+# Production-style (explicit binary)
+go build -o bin/gtqa-server ./cmd/gtqa-server
+./bin/gtqa-server                    # http://127.0.0.1:8080
+
+# Dev (no manual build — same idea as go-trader's `go run local/main.go`)
+go run ./cmd/gtqa-server
+
+# Dev with auto-restart on Go changes (install air once)
+go install github.com/air-verse/air@latest
+make dev                             # or: air
+```
+
+**When do you need to restart?**
+
+| Change | Rebuild binary? | Restart server? | Browser |
+|--------|-----------------|-----------------|---------|
+| `web/static/*`, `web/index.html` | No | No | Hard refresh |
+| `internal/api/*`, other `.go` | Yes (or use `make dev`) | Yes | — |
+
+Static UI is served from the `web/` folder on disk, not baked into the binary — so CSS/JS/HTML edits show up after refresh only. API route/handler changes need a recompiled server; `go run` or `make dev` avoids typing `go build` yourself.
+
+```bash
 open http://127.0.0.1:8080
 ```
 

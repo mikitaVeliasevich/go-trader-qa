@@ -9,13 +9,16 @@ import (
 
 // ReportMeta holds run metadata for qa-report.md header.
 type ReportMeta struct {
-	Title     string
-	ServerID  string
-	Started   string
-	Duration  string
-	Interval  string
-	Profile   Profile
-	RunDir    string
+	Title              string
+	ServerID           string
+	Started            string
+	Duration           string
+	Interval           string
+	Mode               string
+	Window             string
+	MetricsEstimated   bool
+	Profile            Profile
+	RunDir             string
 }
 
 // WriteReport writes qa-report.md for a completed soak run.
@@ -40,6 +43,12 @@ func WriteReport(path string, meta ReportMeta, d Deltas, gates []GateResult, pas
 	if meta.Interval != "" {
 		fmt.Fprintf(&b, "**Interval:** %s  \n", meta.Interval)
 	}
+	if meta.Mode != "" {
+		fmt.Fprintf(&b, "**Mode:** `%s`  \n", meta.Mode)
+	}
+	if meta.Window != "" {
+		fmt.Fprintf(&b, "**Window:** `%s`  \n", meta.Window)
+	}
 	fmt.Fprintf(&b, "**Profile:** `%s`  \n", meta.Profile)
 	if meta.RunDir != "" {
 		fmt.Fprintf(&b, "**Run dir:** `%s`  \n", meta.RunDir)
@@ -53,6 +62,10 @@ func WriteReport(path string, meta ReportMeta, d Deltas, gates []GateResult, pas
 		fmt.Fprintf(&b, " (+%s during window)", formatInt64(d.WSMessagesDelta))
 	}
 	b.WriteString("\n\n")
+
+	if meta.MetricsEstimated {
+		fmt.Fprintf(&b, "> **Note:** Start-of-window metrics for some counters were estimated from current expvar (no log proxy). Treat small deltas on `bus_drops`, `order_filter_cancel`, and position counters with caution.\n\n")
+	}
 
 	fmt.Fprintf(&b, "### Key deltas (first→last row)\n\n")
 	fmt.Fprintf(&b, "```\n")

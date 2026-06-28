@@ -2,12 +2,14 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/dlisovsky/go-trader-qa/internal/config"
 	"github.com/dlisovsky/go-trader-qa/internal/manager"
@@ -70,6 +72,33 @@ func TestHandleFleetNotSynced(t *testing.T) {
 	}
 }
 
+func TestHandleBatchCreateAnalyzeLifecycle(t *testing.T) {
+	s, _ := testServer(t)
+	payload := map[string]any{
+		"server_ids": []int{11},
+		"mode":       "analyze",
+		"window":     "lifecycle",
+		"profile":    "lifecycle",
+		"interval":   "5m",
+	}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/batches", bytes.NewReader(data))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated && rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 201; body %s", rec.Code, rec.Body.String())
+	}
+	var out map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out["batch_id"] == "" {
+		t.Fatalf("missing batch_id: %v", out)
+	}
+}
+
 func TestHandleBatchCreateConcurrencyHardCap(t *testing.T) {
 	s, _ := testServer(t)
 	payload := map[string]any{
@@ -85,6 +114,139 @@ func TestHandleBatchCreateConcurrencyHardCap(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func writeTestBatchDir(t *testing.T, artifacts, batchID string) {
+	t.Helper()
+	batchDir := filepath.Join(artifacts, batchID)
+	if err := os.MkdirAll(batchDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	summary := map[string]any{
+		"batch": map[string]any{
+			"id":     batchID,
+			"status": "complete",
+		},
+		"jobs": []any{},
+	}
+	data, _ := json.MarshalIndent(summary, "", "  ")
+	if err := os.WriteFile(filepath.Join(batchDir, "batch-summary.json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestHandleBatchDeleteCompleted(t *testing.T) {
+	s, artifacts := testServer(t)
+	batchID := "batch-delete-complete"
+	writeTestBatchDir(t, artifacts, batchID)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/batches/"+batchID, nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(artifacts, batchID)); !os.IsNotExist(err) {
+		t.Fatal("batch dir should be removed")
+	}
+}
+
+func TestHandleBatchDeleteNotFound(t *testing.T) {
+	s, _ := testServer(t)
+	req := httptest.NewRequest(http.MethodDelete, "/api/batches/batch-missing", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestHandleBatchDeleteActiveCancelWait(t *testing.T) {
+	s, artifacts := testServer(t)
+	batchID := "batch-delete-active"
+	writeTestBatchDir(t, artifacts, batchID)
+
+	done := make(chan struct{})
+	_, cancel := context.WithCancel(context.Background())
+
+	s.batch.mu.Lock()
+	if s.batch.active == nil {
+		s.batch.active = make(map[string]*activeBatch)
+	}
+	s.batch.active[batchID] = &activeBatch{
+		cancel: cancel,
+		done:   done,
+	}
+	s.batch.mu.Unlock()
+
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		close(done)
+		s.batch.mu.Lock()
+		delete(s.batch.active, batchID)
+		s.batch.mu.Unlock()
+	}()
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/batches/"+batchID, nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(artifacts, batchID)); !os.IsNotExist(err) {
+		t.Fatal("batch dir should be removed after cancel wait")
+	}
+}
+
+func TestHandleBatchBulkDeletePartial(t *testing.T) {
+	s, artifacts := testServer(t)
+	okID := "batch-bulk-ok"
+	writeTestBatchDir(t, artifacts, okID)
+
+	runID := "batch-bulk-running"
+	writeTestBatchDir(t, artifacts, runID)
+	done := make(chan struct{})
+	s.batch.mu.Lock()
+	if s.batch.active == nil {
+		s.batch.active = make(map[string]*activeBatch)
+	}
+	s.batch.active[runID] = &activeBatch{
+		cancel: func() {},
+		done:   done,
+	}
+	s.batch.mu.Unlock()
+
+	payload := map[string]any{"batch_ids": []string{okID, runID, "batch-bulk-missing"}}
+	data, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/batches/bulk-delete", bytes.NewReader(data))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body %s", rec.Code, rec.Body.String())
+	}
+	var out map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	deleted := out["deleted"].([]any)
+	if len(deleted) != 1 || deleted[0] != okID {
+		t.Fatalf("deleted = %v, want [%s]", deleted, okID)
+	}
+	failed := out["failed"].([]any)
+	if len(failed) != 2 {
+		t.Fatalf("failed count = %d, want 2", len(failed))
+	}
+	if _, err := os.Stat(filepath.Join(artifacts, okID)); !os.IsNotExist(err) {
+		t.Fatal("ok batch should be deleted")
+	}
+	if _, err := os.Stat(filepath.Join(artifacts, runID)); err != nil {
+		t.Fatal("running batch dir should remain")
 	}
 }
 

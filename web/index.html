@@ -69,22 +69,7 @@
             <p id="fleet-filter-empty" class="filter-empty hidden">No subs match filter</p>
             <div class="cta-row">
               <span id="selection-label">0 selected</span>
-              <label class="inline-label">Duration
-                <select id="soak-duration">
-                  <option value="15s">15s</option>
-                  <option value="5m">5m</option>
-                  <option value="30m" selected>30m</option>
-                  <option value="1h">1h</option>
-                  <option value="8h">8h</option>
-                </select>
-              </label>
-              <label class="inline-label">Profile
-                <select id="soak-profile">
-                  <option value="wss-only" selected>wss-only</option>
-                  <option value="lifecycle">lifecycle</option>
-                </select>
-              </label>
-              <button type="button" class="btn-primary" id="btn-start" disabled>Start soak</button>
+              <button type="button" class="btn-primary" id="btn-test" disabled>Test</button>
             </div>
           </div>
         </div>
@@ -105,15 +90,25 @@
             <a href="#fleet" class="btn-primary" data-goto="fleet">Go to Fleet</a>
           </div>
           <div id="batches-content" class="hidden">
+            <div class="batches-toolbar toolbar">
+              <button type="button" class="chip" id="batches-select-all">Select all on page</button>
+              <span id="batches-selection-label" class="muted">0 selected</span>
+              <button type="button" class="btn-danger" id="btn-batches-delete" disabled>Delete</button>
+            </div>
             <div class="table-wrap">
               <table class="batches-table" id="batches-table">
                 <thead>
                   <tr>
+                    <th scope="col" class="col-check">
+                      <input type="checkbox" id="batches-select-all-header" aria-label="Select all batches on this page">
+                    </th>
                     <th scope="col" data-sort-table="batches" data-sort-key="status"><button type="button" class="th-sort">status</button></th>
                     <th scope="col" data-sort-table="batches" data-sort-key="estimated_end_at"><button type="button" class="th-sort">remaining</button></th>
                     <th scope="col" data-sort-table="batches" data-sort-key="started_at" class="col-time"><button type="button" class="th-sort">start</button></th>
                     <th scope="col" data-sort-table="batches" data-sort-key="completed_at" class="col-time"><button type="button" class="th-sort">end</button></th>
                     <th scope="col" data-sort-table="batches" data-sort-key="duration"><button type="button" class="th-sort">duration</button></th>
+                    <th scope="col" data-sort-table="batches" data-sort-key="mode"><button type="button" class="th-sort">mode</button></th>
+                    <th scope="col" data-sort-table="batches" data-sort-key="window"><button type="button" class="th-sort">window</button></th>
                     <th scope="col" data-sort-table="batches" data-sort-key="id"><button type="button" class="th-sort">batch_id</button></th>
                     <th scope="col" data-sort-table="batches" data-sort-key="pass_count"><button type="button" class="th-sort">pass</button></th>
                     <th scope="col" data-sort-table="batches" data-sort-key="fail_count"><button type="button" class="th-sort">fail</button></th>
@@ -141,6 +136,7 @@
                 <div class="header-actions">
                   <span id="batch-updated" class="muted"></span>
                   <span id="batch-status-badge" class="tag"></span>
+                  <button type="button" class="btn-danger hidden" id="btn-delete">Delete batch</button>
                   <button type="button" class="btn-danger hidden" id="btn-cancel">Cancel batch</button>
                 </div>
               </div>
@@ -200,6 +196,55 @@
     </main>
   </div>
 
+  <dialog id="test-config-dialog">
+    <form method="dialog" id="test-config-form">
+      <h3>Fleet test</h3>
+      <p id="test-selection-summary" class="muted">0 servers selected</p>
+      <fieldset class="test-mode-fieldset">
+        <legend>Mode</legend>
+        <label class="radio-label"><input type="radio" name="test-mode" value="soak" checked> Soak (forward)</label>
+        <label class="radio-label"><input type="radio" name="test-mode" value="analyze"> Analyze (backward)</label>
+      </fieldset>
+      <div id="test-soak-fields">
+        <label class="inline-label">Duration
+          <select id="soak-duration">
+            <option value="15s">15s</option>
+            <option value="5m">5m</option>
+            <option value="30m" selected>30m</option>
+            <option value="1h">1h</option>
+            <option value="8h">8h</option>
+          </select>
+        </label>
+      </div>
+      <div id="test-analyze-fields" class="hidden">
+        <label class="inline-label">Window
+          <select id="analyze-window">
+            <option value="5m">5m</option>
+            <option value="30m" selected>30m</option>
+            <option value="1h">1h</option>
+            <option value="4h">4h</option>
+            <option value="8h">8h</option>
+            <option value="lifecycle">Whole lifecycle</option>
+          </select>
+        </label>
+      </div>
+      <label class="inline-label">Profile
+        <select id="soak-profile">
+          <option value="wss-only" selected>wss-only</option>
+          <option value="lifecycle">lifecycle</option>
+        </select>
+      </label>
+      <details class="test-advanced" disabled>
+        <summary>Advanced (Phase 3)</summary>
+        <p class="muted">Gate selection, notifications — coming in Phase 3.</p>
+      </details>
+      <div class="dialog-actions">
+        <button type="button" value="cancel" class="btn-secondary" id="test-cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="test-run">Run test</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="lifecycle-dialog">
     <form method="dialog">
       <h3>Lifecycle profile</h3>
@@ -209,6 +254,15 @@
         <button value="confirm" class="btn-primary">Continue</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="delete-batch-dialog">
+    <h3 id="delete-batch-title">Delete batch?</h3>
+    <p id="delete-batch-message"></p>
+    <div class="dialog-actions">
+      <button type="button" class="btn-secondary" id="delete-batch-cancel">Cancel</button>
+      <button type="button" class="btn-danger" id="delete-batch-confirm">Delete</button>
+    </div>
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
