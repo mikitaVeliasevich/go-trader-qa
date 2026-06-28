@@ -8,8 +8,22 @@ Fleet QA ports behavior from go-trader local soak scripts. **Do not duplicate** 
 
 | Profile | Gates | Intent |
 |---------|-------|--------|
-| `wss-only` | G1, G2 | WSS reliability |
+| `wss-only` | G1, G2, G11 | WSS reliability + reconnect health |
 | `lifecycle` (default) | G1–G7 | price_move trading lifecycle |
+| `lifecycle-strict` | G1–G16 | Full elite QA including failures, TP/SL, wake path |
+| `tpsl-health` | G10, G12–G14 | TP/SL and position-reset breakdown |
+
+### lifecycle-strict (G8–G16)
+
+- **G8:** `algo_stopped_permanent` delta == 0
+- **G9:** `order_fail_ret_10003` delta == 0
+- **G10:** when `position_reset` > 0, SL+TP+cancel+liquidation+manual+other == reset
+- **G11:** `reconnect_failed` last == 0 AND `connection_lost` last ≤ `reconnected` last + 1
+- **G12:** `tp_missing_create_fail` == 0 AND `tp_missing_close_position` == 0
+- **G13:** `sl_setup_fail` == 0 AND `sl_price_past_immediate_close` == 0
+- **G14:** when partial TP or lifecycle active: `partial_tp_needs_cancel` ≤ `order_cancel_ok` delta
+- **G15:** `order_fail_total` (create+amend+cancel) delta == 0
+- **G16:** wake path: `price_exec_runs` > 0 when `price_wake_signals` > 0; `private_order_events_drained` > 0 when `position_opened` > 0
 
 ## Gates
 
@@ -49,6 +63,16 @@ Fleet QA ports behavior from go-trader local soak scripts. **Do not duplicate** 
 | `position_reset` | `position_reset` |
 | `algo_paused` | `algo_paused` |
 | `algo_resumed_ok` | `algo_resumed_ok` |
+
+**Elite optional columns** (after `algo_resumed_ok`, before log columns; default 0 if absent):
+
+Order failures: `order_fail_create`, `order_fail_amend`, `order_fail_cancel`, `order_fail_ret_*` (10003, 10006, 10001, 10016, 110001, 110007, 110013, 110021, 110090, 110094, 110059, 110123, 110126), `algo_stopped_permanent`, `risk_limit_margin_reduced`.
+
+TP/SL: `tp_missing_create_ok`, `tp_missing_create_fail`, `tp_missing_close_position`, `sl_setup_started`, `sl_setup_ok`, `sl_setup_fail`, `sl_setup_cancelled`, `sl_price_past_immediate_close`, `partial_tp_needs_cancel`, `position_reset_liquidation`, `position_reset_manual`.
+
+Wake path: `price_wake_signals`, `price_exec_runs`, `private_order_wake_signals`, `private_order_events_signaled`, `private_order_drain_batches`, `private_order_events_drained`.
+
+Expvar key equals TSV column name for all elite columns.
 
 **From log grep** (fleet: Manager `/logs`):
 

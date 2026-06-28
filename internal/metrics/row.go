@@ -8,29 +8,29 @@ import (
 	"strings"
 )
 
-const TSVHeader = "timestamp_utc\telapsed_min\tws_messages\tbus_drops\tbus_publishes\tticker_parsed\tprivate_parsed\tkline_parsed\torder_create_ok\torder_amend_ok\torder_cancel_ok\torder_filter_cancel\torder_create_blocked_position\tposition_opened\tposition_reset\tposition_reset_sl\tposition_reset_tp\tposition_reset_cancel\tposition_reset_other\talgo_paused\talgo_resumed_ok\tconnection_lost\treconnected\treconnect_failed\terrors_10003\torder_failures"
+const TSVHeader = "timestamp_utc\telapsed_min\tws_messages\tbus_drops\tbus_publishes\tticker_parsed\tprivate_parsed\tkline_parsed\torder_create_ok\torder_amend_ok\torder_cancel_ok\torder_filter_cancel\torder_create_blocked_position\tposition_opened\tposition_reset\tposition_reset_sl\tposition_reset_tp\tposition_reset_cancel\tposition_reset_other\talgo_paused\talgo_resumed_ok\torder_fail_create\torder_fail_amend\torder_fail_cancel\torder_fail_ret_10003\torder_fail_ret_10006\torder_fail_ret_10001\torder_fail_ret_10016\torder_fail_ret_110001\torder_fail_ret_110007\torder_fail_ret_110013\torder_fail_ret_110021\torder_fail_ret_110090\torder_fail_ret_110094\torder_fail_ret_110059\torder_fail_ret_110123\torder_fail_ret_110126\talgo_stopped_permanent\trisk_limit_margin_reduced\ttp_missing_create_ok\ttp_missing_create_fail\ttp_missing_close_position\tsl_setup_started\tsl_setup_ok\tsl_setup_fail\tsl_setup_cancelled\tsl_price_past_immediate_close\tpartial_tp_needs_cancel\tposition_reset_liquidation\tposition_reset_manual\tprice_wake_signals\tprice_exec_runs\tprivate_order_wake_signals\tprivate_order_events_signaled\tprivate_order_drain_batches\tprivate_order_events_drained\tconnection_lost\treconnected\treconnect_failed\terrors_10003\torder_failures"
 
 var logPatterns = struct {
-	connectionLost    *regexp.Regexp
-	reconnected       *regexp.Regexp
-	reconnectFailed   *regexp.Regexp
-	errors10003       *regexp.Regexp
-	orderFailures     *regexp.Regexp
+	connectionLost  *regexp.Regexp
+	reconnected     *regexp.Regexp
+	reconnectFailed *regexp.Regexp
+	errors10003     *regexp.Regexp
+	orderFailures   *regexp.Regexp
 }{
 	connectionLost:  regexp.MustCompile(`connection lost|Connection lost|public.*disconnect`),
 	reconnected:     regexp.MustCompile(`reconnected|Reconnected|resubscribe`),
 	reconnectFailed: regexp.MustCompile(`reconnect failed|Reconnect failed`),
 	errors10003:     regexp.MustCompile(`retCode=10003|retCode":10003`),
-	orderFailures:   regexp.MustCompile(`Order failed|order failed`),
+	orderFailures:   regexp.MustCompile(`Order (create|amend|cancel) failed`),
 }
 
 // LogCounts holds grep-derived counters from accumulated soak.log text.
 type LogCounts struct {
-	ConnectionLost    int
-	Reconnected       int
-	ReconnectFailed   int
-	Errors10003       int
-	OrderFailures     int
+	ConnectionLost  int
+	Reconnected     int
+	ReconnectFailed int
+	Errors10003     int
+	OrderFailures   int
 }
 
 // CountLogPatterns counts monitor grep patterns in logText (line counts, like grep -cE).
@@ -87,39 +87,74 @@ func IntFromVars(vars map[string]json.RawMessage, key string) int64 {
 	return 0
 }
 
-// Row is one metrics.tsv sample (26 columns).
+// Row is one metrics.tsv sample (61 columns with elite optional metrics).
 type Row struct {
-	TimestampUTC              string
-	ElapsedMin                int
-	WSMessages                int64
-	BusDrops                  int64
-	BusPublishes              int64
-	TickerParsed              int64
-	PrivateParsed             int64
-	KlineParsed               int64
-	OrderCreateOK             int64
-	OrderAmendOK              int64
-	OrderCancelOK             int64
-	OrderFilterCancel         int64
+	TimestampUTC               string
+	ElapsedMin                 int
+	WSMessages                 int64
+	BusDrops                   int64
+	BusPublishes               int64
+	TickerParsed               int64
+	PrivateParsed              int64
+	KlineParsed                int64
+	OrderCreateOK              int64
+	OrderAmendOK               int64
+	OrderCancelOK              int64
+	OrderFilterCancel          int64
 	OrderCreateBlockedPosition int64
-	PositionOpened            int64
-	PositionReset             int64
-	PositionResetSL           int64
-	PositionResetTP           int64
-	PositionResetCancel       int64
-	PositionResetOther        int64
-	AlgoPaused                int64
-	AlgoResumedOK             int64
-	ConnectionLost            int
-	Reconnected               int
-	ReconnectFailed           int
-	Errors10003               int
-	OrderFailures             int
+	PositionOpened             int64
+	PositionReset              int64
+	PositionResetSL            int64
+	PositionResetTP            int64
+	PositionResetCancel        int64
+	PositionResetOther         int64
+	AlgoPaused                 int64
+	AlgoResumedOK              int64
+	OrderFailCreate            int64
+	OrderFailAmend             int64
+	OrderFailCancel            int64
+	OrderFailRet10003          int64
+	OrderFailRet10006          int64
+	OrderFailRet10001          int64
+	OrderFailRet10016          int64
+	OrderFailRet110001         int64
+	OrderFailRet110007         int64
+	OrderFailRet110013         int64
+	OrderFailRet110021         int64
+	OrderFailRet110090         int64
+	OrderFailRet110094         int64
+	OrderFailRet110059         int64
+	OrderFailRet110123         int64
+	OrderFailRet110126         int64
+	AlgoStoppedPermanent       int64
+	RiskLimitMarginReduced     int64
+	TPMissingCreateOK          int64
+	TPMissingCreateFail        int64
+	TPMissingClosePosition     int64
+	SLSetupStarted             int64
+	SLSetupOK                  int64
+	SLSetupFail                int64
+	SLSetupCancelled           int64
+	SLPricePastImmediateClose  int64
+	PartialTPNeedsCancel       int64
+	PositionResetLiquidation   int64
+	PositionResetManual        int64
+	PriceWakeSignals           int64
+	PriceExecRuns              int64
+	PrivateOrderWakeSignals    int64
+	PrivateOrderEventsSignaled int64
+	PrivateOrderDrainBatches   int64
+	PrivateOrderEventsDrained  int64
+	ConnectionLost             int
+	Reconnected                int
+	ReconnectFailed            int
+	Errors10003                int
+	OrderFailures              int
 }
 
 // RowFromVars builds a Row from expvar JSON and log grep counts.
 func RowFromVars(timestamp string, elapsedMin int, vars map[string]json.RawMessage, counts LogCounts) Row {
-	return Row{
+	row := Row{
 		TimestampUTC:               timestamp,
 		ElapsedMin:                 elapsedMin,
 		WSMessages:                 IntFromVars(vars, "ws_messages_received"),
@@ -146,6 +181,85 @@ func RowFromVars(timestamp string, elapsedMin int, vars map[string]json.RawMessa
 		ReconnectFailed:            counts.ReconnectFailed,
 		Errors10003:                counts.Errors10003,
 		OrderFailures:              counts.OrderFailures,
+	}
+	for _, col := range OptionalTSVColumns {
+		setOptionalFromVars(&row, col, IntFromVars(vars, col))
+	}
+	return row
+}
+
+func setOptionalFromVars(row *Row, col string, v int64) {
+	switch col {
+	case "order_fail_create":
+		row.OrderFailCreate = v
+	case "order_fail_amend":
+		row.OrderFailAmend = v
+	case "order_fail_cancel":
+		row.OrderFailCancel = v
+	case "order_fail_ret_10003":
+		row.OrderFailRet10003 = v
+	case "order_fail_ret_10006":
+		row.OrderFailRet10006 = v
+	case "order_fail_ret_10001":
+		row.OrderFailRet10001 = v
+	case "order_fail_ret_10016":
+		row.OrderFailRet10016 = v
+	case "order_fail_ret_110001":
+		row.OrderFailRet110001 = v
+	case "order_fail_ret_110007":
+		row.OrderFailRet110007 = v
+	case "order_fail_ret_110013":
+		row.OrderFailRet110013 = v
+	case "order_fail_ret_110021":
+		row.OrderFailRet110021 = v
+	case "order_fail_ret_110090":
+		row.OrderFailRet110090 = v
+	case "order_fail_ret_110094":
+		row.OrderFailRet110094 = v
+	case "order_fail_ret_110059":
+		row.OrderFailRet110059 = v
+	case "order_fail_ret_110123":
+		row.OrderFailRet110123 = v
+	case "order_fail_ret_110126":
+		row.OrderFailRet110126 = v
+	case "algo_stopped_permanent":
+		row.AlgoStoppedPermanent = v
+	case "risk_limit_margin_reduced":
+		row.RiskLimitMarginReduced = v
+	case "tp_missing_create_ok":
+		row.TPMissingCreateOK = v
+	case "tp_missing_create_fail":
+		row.TPMissingCreateFail = v
+	case "tp_missing_close_position":
+		row.TPMissingClosePosition = v
+	case "sl_setup_started":
+		row.SLSetupStarted = v
+	case "sl_setup_ok":
+		row.SLSetupOK = v
+	case "sl_setup_fail":
+		row.SLSetupFail = v
+	case "sl_setup_cancelled":
+		row.SLSetupCancelled = v
+	case "sl_price_past_immediate_close":
+		row.SLPricePastImmediateClose = v
+	case "partial_tp_needs_cancel":
+		row.PartialTPNeedsCancel = v
+	case "position_reset_liquidation":
+		row.PositionResetLiquidation = v
+	case "position_reset_manual":
+		row.PositionResetManual = v
+	case "price_wake_signals":
+		row.PriceWakeSignals = v
+	case "price_exec_runs":
+		row.PriceExecRuns = v
+	case "private_order_wake_signals":
+		row.PrivateOrderWakeSignals = v
+	case "private_order_events_signaled":
+		row.PrivateOrderEventsSignaled = v
+	case "private_order_drain_batches":
+		row.PrivateOrderDrainBatches = v
+	case "private_order_events_drained":
+		row.PrivateOrderEventsDrained = v
 	}
 }
 
@@ -181,12 +295,17 @@ func (r Row) TSVLine() string {
 		formatInt64(r.PositionResetOther),
 		formatInt64(r.AlgoPaused),
 		formatInt64(r.AlgoResumedOK),
+	}
+	for _, col := range OptionalTSVColumns {
+		fields = append(fields, formatInt64(rowInt64(r, col)))
+	}
+	fields = append(fields,
 		formatInt(r.ConnectionLost),
 		formatInt(r.Reconnected),
 		formatInt(r.ReconnectFailed),
 		formatInt(r.Errors10003),
 		formatInt(r.OrderFailures),
-	}
+	)
 	return strings.Join(fields, "\t")
 }
 

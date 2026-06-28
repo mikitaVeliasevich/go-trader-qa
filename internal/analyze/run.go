@@ -12,11 +12,11 @@ import (
 
 // Result is the outcome of analyzing one soak run directory.
 type Result struct {
-	RunDir    string
-	Profile   Profile
-	Pass      bool
-	Gates     []GateResult
-	Deltas    Deltas
+	RunDir     string
+	Profile    Profile
+	Pass       bool
+	Gates      []GateResult
+	Deltas     Deltas
 	ReportPath string
 }
 
@@ -27,10 +27,8 @@ func Run(runDir string, profile Profile) (Result, error) {
 		return Result{}, fmt.Errorf("run dir is required")
 	}
 
-	switch profile {
-	case ProfileLifecycle, ProfileWSSOnly:
-	default:
-		return Result{}, fmt.Errorf("profile must be lifecycle or wss-only")
+	if !ValidProfile(profile) {
+		return Result{}, fmt.Errorf("profile must be one of: wss-only, lifecycle, lifecycle-strict, tpsl-health")
 	}
 
 	metricsPath := filepath.Join(runDir, "metrics.tsv")
@@ -41,12 +39,13 @@ func Run(runDir string, profile Profile) (Result, error) {
 
 	d := ComputeDeltas(rows)
 	soakLog := filepath.Join(runDir, "soak.log")
-	gates, pass := EvaluateGates(d, soakLog, profile)
+	gates, pass := EvaluateGates(d, rows, soakLog, profile)
 
 	meta := ReportMeta{
-		Title:    filepath.Base(runDir),
-		Profile:  profile,
-		RunDir:   runDir,
+		Title:       filepath.Base(runDir),
+		Profile:     profile,
+		RunDir:      runDir,
+		SoakLogPath: soakLog,
 	}
 	loadRunEnv(filepath.Join(runDir, "run.env"), &meta)
 

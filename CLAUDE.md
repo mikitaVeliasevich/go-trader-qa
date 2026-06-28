@@ -31,8 +31,9 @@ go build -o bin/gtqa-server ./cmd/gtqa-server
 # Staging smoke
 ./bin/gtqa fleet sync && ./bin/gtqa smoke 11
 
-# Analyze fixture (golden: wss-only PASS on 10-51-41Z-11)
-./bin/gtqa analyze reports/2026-06-28T10-51-41Z-11 --profile wss-only
+# Analyze fixture (golden: wss-only + lifecycle-strict PASS on 10-51-41Z-11)
+./bin/gtqa analyze --run-dir reports/2026-06-28T10-51-41Z-11 --profile wss-only
+./bin/gtqa analyze --run-dir reports/2026-06-28T10-51-41Z-11 --profile lifecycle-strict
 
 # Short batch
 ./bin/gtqa soak batch --server-ids 11 --duration 15s --interval 5s --concurrency 1
@@ -51,8 +52,8 @@ make dev                             # dev: auto-restart on .go changes (air)
 | `internal/fleet` | Join db_subs + sync_data → `FleetRow`, eligibility |
 | `internal/sampler` | Remote observe loop → `metrics.tsv`, `soak.log` |
 | `internal/metrics` | TSV I/O, deltas, log helpers |
-| `internal/analyze` | G1–G7 gates, `qa-report.md`, profiles |
-| `internal/catalog` | Load `metrics-catalog.json` from go-trader |
+| `internal/analyze` | G1–G16 gates, `qa-report.md`, profiles |
+| `internal/catalog` | Embedded `metrics-catalog.json` (gate/profile schema) |
 | `internal/batch` | Multi-server soak, semaphore, batch-summary |
 | `internal/api` | `gtqa-server` routes, artifact whitelist |
 | `web/` | Static UI (no React, no build step) |
@@ -63,7 +64,9 @@ make dev                             # dev: auto-restart on .go changes (air)
 go test ./...
 ```
 
-Golden fixture: `reports/2026-06-28T10-51-41Z-11/` (wss-only and lifecycle PASS when no position activity).
+Golden fixture: `reports/2026-06-28T10-51-41Z-11/` (wss-only, lifecycle, lifecycle-strict PASS when no position activity).
+
+Profiles: `wss-only` (G1,G2,G11), `lifecycle` (G1–G7), `lifecycle-strict` (G1–G16), `tpsl-health` (G10,G12–G14).
 
 ## Phase status
 

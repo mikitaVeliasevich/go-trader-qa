@@ -43,7 +43,7 @@ func newAnalyzeCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&runDir, "run-dir", "", "soak run directory (required)")
-	cmd.Flags().StringVar(&profile, "profile", "lifecycle", "gate profile: lifecycle or wss-only")
+	cmd.Flags().StringVar(&profile, "profile", "lifecycle", "gate profile: wss-only, lifecycle, lifecycle-strict, or tpsl-health")
 	_ = cmd.MarkFlagRequired("run-dir")
 
 	return cmd

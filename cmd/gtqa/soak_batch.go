@@ -45,7 +45,7 @@ func newSoakBatchCmd() *cobra.Command {
 	cmd.Flags().StringVar(&duration, "duration", "30m", "soak duration per job (e.g. 30m, 4h)")
 	cmd.Flags().StringVar(&interval, "interval", "5m", "sample interval (e.g. 5m)")
 	cmd.Flags().IntVar(&concurrency, "concurrency", 2, "max parallel jobs")
-	cmd.Flags().StringVar(&profile, "profile", string(analyze.ProfileWSSOnly), "analyzer profile: wss-only or lifecycle")
+	cmd.Flags().StringVar(&profile, "profile", string(analyze.ProfileWSSOnly), "analyzer profile: wss-only, lifecycle, lifecycle-strict, or tpsl-health")
 	cmd.Flags().BoolVar(&skipIneligible, "skip-ineligible", true, "skip servers not QA eligible")
 	cmd.Flags().BoolVar(&doAnalyze, "analyze", true, "run analyzer after each soak job")
 	_ = cmd.MarkFlagRequired("server-ids")
